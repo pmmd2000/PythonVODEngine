@@ -6,7 +6,7 @@ output_file = '/home/parham/videos/converted/output.m3u8'
 #FFmpeg conversion
 (
 ffmpeg
-.input(input_file)
+.input(input_file) # type: ignore
 .output
     (
     output_file, 
