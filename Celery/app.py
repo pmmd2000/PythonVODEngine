@@ -1,19 +1,15 @@
 from flask import Flask, request, jsonify
 import os
 from tasks import process_video_task
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__)
-UPLOAD_FOLDER = 'F:/Celery'
-OUTPUT_FOLDER = 'F:/Celery_output'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+upload_dest = str(os.getenv('UPLOAD_DEST'))
+output_dest = str(os.getenv('OUTPUT_DEST'))
 
-if not os.path.exists(OUTPUT_FOLDER):
-    os.makedirs(OUTPUT_FOLDER)
-
-@app.route('/upload', methods=['POST'])
+@app.route('/upload', methods=['POST']) # type: ignore
 def upload_video():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -21,11 +17,10 @@ def upload_video():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
     if file:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file_path = os.path.join(upload_dest, file.filename) # type: ignore
         file.save(file_path)
-        # Enqueue the video processing task
-        process_video_task.delay(file_path, OUTPUT_FOLDER)
+        process_video_task.delay(file_path, output_dest)
         return jsonify({'message': 'File uploaded successfully', 'file_path': file_path}), 201
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host=os.getenv('HOST'))
