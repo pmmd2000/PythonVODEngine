@@ -30,25 +30,25 @@ def video_insert():
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
     if type(VideoID)==NoneType and not os.path.exists(ConvertedVideo_path):
         VideoData=db_connections.mssql_insert_video(VideoName)
-        Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
+        Conversion.ConvertVideo(VideoID, VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
         return 'Success',200
     elif os.path.exists(ConvertedVideo_path):
         raise Exception("Video directory already present")
     else:
         return 'Video already present',406
 
-@app.route('/api/upload', methods=['POST']) 
-def upload_video():
-    file = request.files['file']
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    if file:
-        OriginalVideo_path = os.path.join(OriginalVideos_path, file.filename) 
-        file.save(OriginalVideo_path)
-        process_video_task.delay(OriginalVideo_path, ConvertedVideos_path)
-        return jsonify({'message': 'File uploaded successfully', 'OriginalVideo_path': OriginalVideo_path}), 201
+# @app.route('/api/upload', methods=['POST']) 
+# def upload_video():
+#     file = request.files['file']
+#     if 'file' not in request.files:
+#         return jsonify({'error': 'No file part'}), 400
+#     if file.filename == '':
+#         return jsonify({'error': 'No selected file'}), 400
+#     if file:
+#         OriginalVideo_path = os.path.join(OriginalVideos_path, file.filename) 
+#         file.save(OriginalVideo_path)
+#         process_video_task.delay(OriginalVideo_path, ConvertedVideos_path)
+#         return jsonify({'message': 'File uploaded successfully', 'OriginalVideo_path': OriginalVideo_path}), 201
 
 if __name__ == '__main__':
     app.run(debug=True, host=os.getenv('HOST'))

@@ -1,5 +1,6 @@
 import re
 import os
+import db_connections
 
 def RawVideoNameCheck(RawVideoName):
     RegExExtention= r'^[\w]+\.[\w]+$'
@@ -11,3 +12,18 @@ def RawVideoNameCheck(RawVideoName):
         return RawVideoName
     else:
         return "VideoName Invalid",400
+
+def CheckConversionEnd(VideoName):
+    VideoDetails= db_connections.mssql_select_video(VideoName)
+    if all(VideoDetails[f'FldConvertState{res}'] == 1 for res in [480, 720, 1080, 360]):
+        db_connections.mssql_update_video_conversion_finished(VideoName,True)
+    else:
+        pass
+    
+def CheckConversionEndRedis(VideoName):
+    if all(db_connections.redis_check_keyvalue(f"{VideoName}-{res}") == 1 for res in [480, 720, 1080, 360]):
+        db_connections.mssql_update_video_conversion_finished(VideoName,True)
+    else:
+        pass
+    
+CheckConversionEndRedis('3')
