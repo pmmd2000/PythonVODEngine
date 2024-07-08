@@ -26,11 +26,11 @@ def video_details():
 def video_insert():
     RawVideoName=request.json['VideoName'] 
     VideoName=functions.RawVideoNameCheck(RawVideoName)
-    VideoID= db_connections.mssql_select_video(VideoName) 
+    VideoID= db_connections.mssql_select_video(VideoName)
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
     if type(VideoID)==NoneType and not os.path.exists(ConvertedVideo_path):
         VideoData=db_connections.mssql_insert_video(VideoName)
-        Conversion.ConvertVideo(VideoID, VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
+        Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
         return 'Success',200
     elif os.path.exists(ConvertedVideo_path):
         raise Exception("Video directory already present")

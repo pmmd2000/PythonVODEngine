@@ -1,7 +1,7 @@
 import os
 from tasks import process_video_task
 
-def ConvertVideo(VideoID, VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
+def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
     
     # Create converted video directory
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
@@ -19,5 +19,7 @@ def ConvertVideo(VideoID, VideoName,OriginalVideos_path,ConvertedVideos_path,Vid
     
 
     # FFmpeg Conversion:
-    for Quality in [480,1080,720,360]:
-        process_video_task.delay(VideoID, VideoName,OriginalVideos_path,ConvertedVideos_path,Quality)
+    for Quality in [480,1080,720]:
+        process_video_task.apply_async(args=(VideoName,OriginalVideos_path,ConvertedVideos_path,Quality,VideoData),queue=f'video_{Quality}')
+    
+    # process_video_task_local(VideoName,OriginalVideos_path,ConvertedVideos_path,480,VideoData)

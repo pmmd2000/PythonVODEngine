@@ -20,10 +20,8 @@ def CheckConversionEnd(VideoName):
     else:
         pass
     
-def CheckConversionEndRedis(VideoName):
-    if all(db_connections.redis_check_keyvalue(f"{VideoName}-{res}") == 1 for res in [480, 720, 1080, 360]):
+def CheckConversionEndRedis(VideoID,VideoName):
+    if all(db_connections.redis_check_keyvalue(f"{VideoID}-{VideoName}-{res}") == '100' for res in [480, 720, 1080, 360]):
         db_connections.mssql_update_video_conversion_finished(VideoName,True)
     else:
         pass
-    
-CheckConversionEndRedis('3')

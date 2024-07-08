@@ -60,9 +60,9 @@ def mssql_update_video_conversion_finished(video_name, ConversionState: bool):
     cursor.close()
 
 
-def redis_update_video_quality(VideoID, video_name, Quality: int, QualityState: bool):
+def redis_update_video_quality(VideoID, video_name, Quality: int, QualityPercentile:float):
     if Quality in (480, 720, 1080, 360):
-        r.set(f"{VideoID}-{video_name}-{Quality}",int(QualityState),ex=86400)
+        r.set(f"{VideoID}-{video_name}-{Quality}",str(QualityPercentile),ex=86400)
     else:
         raise TypeError("Quality not valid")
     
