@@ -15,7 +15,7 @@ def RawVideoNameCheck(RawVideoName):
 
 def CheckConversionEnd(VideoName):
     VideoDetails= db_connections.mssql_select_video(VideoName)
-    if all(VideoDetails[f'FldConvertState{res}'] == 1 for res in [480, 720, 1080, 360]):
+    if all(VideoDetails[f'FldConvertState{res}'] == 1 for res in [480, 720, 1080]):
         db_connections.mssql_update_video_conversion_finished(VideoName,True)
     else:
         pass

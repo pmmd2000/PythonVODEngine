@@ -41,16 +41,6 @@ def mssql_insert_video(video_name):
     cursor.close()
     return record
     
-def mssql_update_video_quality(video_name, Quality: int, QualityState: bool):
-    if Quality in (480, 720, 1080, 360):
-        cursor = mssql_connection.cursor(as_dict=True)
-        query = mssql_query_update_video.format(f"FldConvertState{Quality}")
-        cursor.execute(query, (int(QualityState), video_name))
-        mssql_connection.commit()
-        # cursor.close()
-        # mssql_connection.close()
-    else:
-        raise TypeError("Quality not valid")
     
 def mssql_update_video_conversion_finished(video_name, ConversionState: bool):
     cursor = mssql_connection.cursor(as_dict=True)
@@ -59,12 +49,6 @@ def mssql_update_video_conversion_finished(video_name, ConversionState: bool):
     mssql_connection.commit()
     cursor.close()
 
-
-def redis_update_video_quality(VideoID, video_name, Quality: int, QualityPercentile:float):
-    if Quality in (480, 720, 1080, 360):
-        r.set(f"{VideoID}-{video_name}-{Quality}",str(QualityPercentile),ex=86400)
-    else:
-        raise TypeError("Quality not valid")
     
 def redis_check_keyvalue(key):
     return r.get(key)

@@ -1,16 +1,53 @@
 from celery_config import celery
 import ffmpeg
 import os
-import db_connections
-import functions
 import re
 import subprocess
 import logging
+import pymssql
+import redis
 
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData):
     try:
         
+        ###
+        mssql_connection = pymssql.connect(
+        server=os.getenv("DB_HOST","None"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASS"),
+        database=os.getenv("DB_NAME","None")
+        )
+        r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
+        mssql_query_update_video = "UPDATE dbo.TblVideo SET {}=%s WHERE FldName=%s"
+        def redis_check_keyvalue(key):
+            return r.get(key)
+        def mssql_update_video_conversion_finished(video_name, ConversionState: bool):
+            cursor = mssql_connection.cursor(as_dict=True)
+            query = mssql_query_update_video.format("FldConvertIsFinished")
+            cursor.execute(query, (int(ConversionState), video_name))
+            mssql_connection.commit()
+            cursor.close()        
+        def CheckConversionEndRedis(VideoID,VideoName):
+            if all(redis_check_keyvalue(f"{VideoID}-{VideoName}-{res}") == '100' for res in [480, 720, 1080]):
+                mssql_update_video_conversion_finished(VideoName,True)
+            else:
+                pass
+        def redis_update_video_quality(VideoID, video_name, Quality: int, QualityPercentile:float):
+            if Quality in (480, 720, 1080):
+                r.set(f"{VideoID}-{video_name}-{Quality}",str(QualityPercentile),ex=86400)
+            else:
+                raise TypeError("Quality not valid")
+        def mssql_update_video_quality(video_name, Quality: int, QualityState: bool):
+            if Quality in (480, 720, 1080):
+                cursor = mssql_connection.cursor(as_dict=True)
+                query = mssql_query_update_video.format(f"FldConvertState{Quality}")
+                cursor.execute(query, (int(QualityState), video_name))
+                mssql_connection.commit()
+                cursor.close()
+            else:
+                raise TypeError("Quality not valid")
+        ###
         input_file = os.path.join(OriginalVideo_path, f'{VideoName}.mp4')
         output_file = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}.m3u8')
         ffmpeg_segment_filename = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
@@ -44,7 +81,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             .global_args('-progress', '-', '-loglevel', 'verbose')
             .compile()
         )
-
+        mssql_update_video_quality(VideoName,Quality,True)
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         total_duration = None
         percentage = 0
@@ -76,12 +113,11 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     elapsed_time = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
                     percentage = (elapsed_time / total_duration) * 100
                     print(f"Elapsed time: {elapsed_time} seconds, Percentage: {percentage:.2f}%")  # Debug output
-                    db_connections.redis_update_video_quality(VideoID,VideoName,Quality,round(percentage,2))
+                    redis_update_video_quality(VideoID,VideoName,Quality,round(percentage,2))
 
         
-        db_connections.redis_update_video_quality(VideoID, VideoName, Quality, 100)
-        functions.CheckConversionEndRedis(VideoID, VideoName)
-
+        redis_update_video_quality(VideoID, VideoName, Quality, 100)
+        CheckConversionEndRedis(VideoID, VideoName)
         return output_file
     except Exception as e:
         self.update_state(
