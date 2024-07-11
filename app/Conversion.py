@@ -20,6 +20,13 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
 
     # FFmpeg Conversion:
     for Quality in [480,1080,720]:
-        process_video_task.apply_async(args=(VideoName,OriginalVideos_path,ConvertedVideos_path,Quality,VideoData),queue=f'video_{Quality}')
+        if Quality==480:
+            priority=5
+        elif Quality==720:
+            priority=3
+        elif Quality==1080:
+            priority=1
+            
+        process_video_task.apply_async(args=(VideoName,OriginalVideos_path,ConvertedVideos_path,Quality,VideoData),queue='tasks',priority=priority )
     
     # process_video_task_local(VideoName,OriginalVideos_path,ConvertedVideos_path,480,VideoData)

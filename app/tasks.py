@@ -23,8 +23,6 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             ffmpeg_resolution = '1280x720'
         elif Quality == 1080:
             ffmpeg_resolution = '1920x1080'
-        elif Quality == 360:
-            ffmpeg_resolution = '640x360'
         else:
             raise Exception("Quality unacceptable")
 

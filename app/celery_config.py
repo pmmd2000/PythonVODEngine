@@ -6,20 +6,17 @@ load_dotenv()
 
 def make_celery(app_name=__name__):
     redis_url = os.getenv('REDIS_CS')
-    celery = Celery(app_name, backend=redis_url, broker=redis_url)
-    
-    celery.conf.update({
-        'worker_concurrency': 1,
-        'task_queues': (
-            Queue('video_480', Exchange('video'), routing_key='video.480', queue_arguments={'x-max-priority': 10}),
-            Queue('video_720', Exchange('video'), routing_key='video.720', queue_arguments={'x-max-priority': 5}),
-            Queue('video_1080', Exchange('video'), routing_key='video.1080', queue_arguments={'x-max-priority': 1}),
-            ),
-        'task_default_queue': 'default',
-        'task_default_exchange': 'video',
-        'task_default_routing_key': 'video.default',
-        'task_default_priority': 5,
-    })
+    broker_url = os.getenv('RABBITMQ_CS')
+    celery = Celery(app_name, backend=redis_url, broker=broker_url)
+    celery.conf.task_queues = [Queue('tasks', Exchange('tasks'), routing_key='tasks',queue_arguments={'x-max-priority': 10}),]
+    celery.conf.task_acks_late= True
+    celery.conf.worker_prefetch_multiplier=1
+    celery.conf.worker_concurrency=3
+    celery.conf.task_queue_max_priority = 10
+    celery.conf.task_default_priority = 5
+    celery.conf.worker_max_tasks_per_child=1
+    celery.conf.result_backend_thread_safe=True
+    celery.conf.task_track_started=True
     
     return celery
 
