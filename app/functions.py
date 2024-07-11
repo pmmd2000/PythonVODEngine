@@ -7,9 +7,9 @@ def RawVideoNameCheck(RawVideoName):
     RegExNameOnly= r'^[\w]+$'
     if re.match(RegExExtention, RawVideoName):
         VideoName,Extension=os.path.splitext(RawVideoName)
-        return VideoName
+        return {'VideoName': VideoName, 'Extension': Extension}
     elif re.match(RegExNameOnly,RawVideoName):
-        return RawVideoName
+        return {'VideoName': RawVideoName, 'Extension': 'mp4'}
     else:
         return "VideoName Invalid",400
 

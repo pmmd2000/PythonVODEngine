@@ -18,25 +18,26 @@ r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), deco
 
 hash_salt=os.getenv('HASH_SALT')
 mssql_query_select_video="SELECT * FROM dbo.TblVideo WHERE FldName=%s"
-mssql_query_insert_video="INSERT INTO dbo.TblVideo (FldName,FldNameHash,FldInsertDatetime,FldEncKey) VALUES (%s,%s,%s,%s)"
+mssql_query_insert_video="INSERT INTO dbo.TblVideo (FldName,FldNameHash,FldInsertDatetime,FldEncKey,FldEncKeyIV,FldVideoExtension,FldLength) VALUES (%s,%s,%s,%s,%s,%s,%s)"
 mssql_query_update_video = "UPDATE dbo.TblVideo SET {}=%s WHERE FldName=%s"
 
 
-def mssql_select_video(video_name):
+def mssql_select_video(VideoName):
     cursor = mssql_connection.cursor(as_dict=True)
-    cursor.execute(mssql_query_select_video,(video_name,))
+    cursor.execute(mssql_query_select_video,(VideoName,))
     record = cursor.fetchone()
     cursor.close()
     return record
 
-def mssql_insert_video(video_name):
-    video_name_hash=sha256((video_name+hash_salt).encode('utf-8')).hexdigest()
+def mssql_insert_video(VideoName,Extension,Duration):
+    video_name_hash=sha256((VideoName+hash_salt).encode('utf-8')).hexdigest()
     current_datetime=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     EncKeyHex = os.urandom(16).hex()
+    EncKeyIVHex = os.urandom(16).hex()
     cursor = mssql_connection.cursor(as_dict=True)
-    cursor.execute(mssql_query_insert_video,(video_name,video_name_hash,current_datetime,EncKeyHex))
+    cursor.execute(mssql_query_insert_video,(VideoName,video_name_hash,current_datetime,EncKeyHex,EncKeyIVHex,Extension,Duration))
     mssql_connection.commit()
-    cursor.execute(mssql_query_select_video,(video_name,))
+    cursor.execute(mssql_query_select_video,(VideoName,))
     record = cursor.fetchone()
     cursor.close()
     return record

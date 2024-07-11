@@ -48,7 +48,8 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             else:
                 raise TypeError("Quality not valid")
         ###
-        input_file = os.path.join(OriginalVideo_path, f'{VideoName}.mp4')
+        Extension= VideoData['FldVideoExtension']
+        input_file = os.path.join(OriginalVideo_path, f'{VideoName}.{Extension}')
         output_file = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}.m3u8')
         ffmpeg_segment_filename = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
         keyinfo_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.keyinfo')

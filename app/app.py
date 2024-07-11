@@ -1,8 +1,7 @@
 from logging import exception
 from types import NoneType
-from flask import Flask, request, jsonify
+from flask import Flask, request
 import os
-from tasks import process_video_task
 from dotenv import load_dotenv
 import db_connections
 import Conversion
@@ -25,11 +24,13 @@ def video_details():
 @app.route('/api/startVideoConversion',methods=['POST']) 
 def video_insert():
     RawVideoName=request.json['VideoName'] 
-    VideoName=functions.RawVideoNameCheck(RawVideoName)
+    VideoName=functions.RawVideoNameCheck(RawVideoName)['VideoName']
+    Extension=functions.RawVideoNameCheck(RawVideoName)['Extension']
     VideoID= db_connections.mssql_select_video(VideoName)
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
+    Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
     if type(VideoID)==NoneType and not os.path.exists(ConvertedVideo_path):
-        VideoData=db_connections.mssql_insert_video(VideoName)
+        VideoData=db_connections.mssql_insert_video(VideoName,Extension,Duration)
         Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
         return 'Success',200
     elif os.path.exists(ConvertedVideo_path):
