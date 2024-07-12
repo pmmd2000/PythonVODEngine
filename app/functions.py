@@ -9,19 +9,19 @@ def RawVideoNameCheck(RawVideoName):
         VideoName,Extension=os.path.splitext(RawVideoName)
         return {'VideoName': VideoName, 'Extension': Extension}
     elif re.match(RegExNameOnly,RawVideoName):
-        return {'VideoName': RawVideoName, 'Extension': 'mp4'}
+        return {'VideoName': RawVideoName, 'Extension': '.mp4'}
     else:
         return "VideoName Invalid",400
 
-def CheckConversionEnd(VideoName):
-    VideoDetails= db_connections.mssql_select_video(VideoName)
-    if all(VideoDetails[f'FldConvertState{res}'] == 1 for res in [480, 720, 1080]):
-        db_connections.mssql_update_video_conversion_finished(VideoName,True)
-    else:
-        pass
+# def CheckConversionEnd(VideoName):
+#     VideoDetails= db_connections.mssql_select_video(VideoName)
+#     if all(VideoDetails[f'FldConvertState{res}'] == 1 for res in [480, 720, 1080]):
+#         db_connections.mssql_update_video_conversion_finished(VideoName,True)
+#     else:
+#         pass
     
-def CheckConversionEndRedis(VideoID,VideoName):
-    if all(db_connections.redis_check_keyvalue(f"{VideoID}-{VideoName}-{res}") == '100' for res in [480, 720, 1080]):
-        db_connections.mssql_update_video_conversion_finished(VideoName,True)
-    else:
-        pass
+# def CheckConversionEndRedis(VideoID,VideoName):
+#     if all(db_connections.redis_check_keyvalue(f"{VideoID}-{VideoName}-{res}") == '100' for res in [480, 720, 1080]):
+#         db_connections.mssql_update_video_conversion_finished(VideoName,True)
+#     else:
+#         pass

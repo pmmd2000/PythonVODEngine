@@ -6,11 +6,11 @@ import subprocess
 import logging
 import pymssql
 import redis
+from datetime import datetime
 
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData):
     try:
-        
         ###
         mssql_connection = pymssql.connect(
         server=os.getenv("DB_HOST","None"),
@@ -18,38 +18,43 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         password=os.getenv("DB_PASS"),
         database=os.getenv("DB_NAME","None")
         )
+        ConversionID=VideoData['FldPkConversion']
+        def CurrentDatetime():
+            return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
-        mssql_query_update_video = "UPDATE dbo.TblVideo SET {}=%s WHERE FldName=%s"
+        mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
         def redis_check_keyvalue(key):
             return r.get(key)
-        def mssql_update_video_conversion_finished(video_name, ConversionState: bool):
+        def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool,):
             cursor = mssql_connection.cursor(as_dict=True)
             query = mssql_query_update_video.format("FldConvertIsFinished")
-            cursor.execute(query, (int(ConversionState), video_name))
+            cursor.execute(query, (int(ConversionState), ConversionID))
             mssql_connection.commit()
             cursor.close()        
-        def CheckConversionEndRedis(VideoID,VideoName):
-            if all(redis_check_keyvalue(f"{VideoID}-{VideoName}-{res}") == '100' for res in [480, 720, 1080]):
-                mssql_update_video_conversion_finished(VideoName,True)
+        def CheckConversionEndRedis(VideoID,ConversionID,VideoName):
+            if all(redis_check_keyvalue(f"{VideoID}:{ConversionID}:{VideoName}-{res}") == '100' for res in [480, 720, 1080]):
+                mssql_update_video_conversion_finished(ConversionID,True)
             else:
                 pass
-        def redis_update_video_quality(VideoID, video_name, Quality: int, QualityPercentile:float):
+        def redis_update_video_quality(VideoID,ConversionID, video_name, Quality: int, QualityPercentile:float):
             if Quality in (480, 720, 1080):
-                r.set(f"{VideoID}-{video_name}-{Quality}",str(QualityPercentile),ex=86400)
+                r.set(f"{VideoID}:{ConversionID}:{video_name}-{Quality}",str(QualityPercentile),ex=86400)
             else:
                 raise TypeError("Quality not valid")
-        def mssql_update_video_quality(video_name, Quality: int, QualityState: bool):
-            if Quality in (480, 720, 1080):
+        def mssql_update_video_quality(ConversionID, Quality: int,StartorEnd):
+            if Quality in (480, 720, 1080) and StartorEnd in ('Start','End'):
                 cursor = mssql_connection.cursor(as_dict=True)
-                query = mssql_query_update_video.format(f"FldConvertState{Quality}")
-                cursor.execute(query, (int(QualityState), video_name))
+                query = mssql_query_update_video.format(f"FldConvert{Quality}{StartorEnd}")
+                cursor.execute(query, (CurrentDatetime(), ConversionID))
                 mssql_connection.commit()
                 cursor.close()
             else:
-                raise TypeError("Quality not valid")
+                raise TypeError("Arguments not valid")
+        
         ###
-        Extension= VideoData['FldVideoExtension']
-        input_file = os.path.join(OriginalVideo_path, f'{VideoName}.{Extension}')
+        Extension= VideoData['FldExtension']
+        input_file = os.path.join(OriginalVideo_path, f'{VideoName}{Extension}')
         output_file = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}.m3u8')
         ffmpeg_segment_filename = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
         keyinfo_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.keyinfo')
@@ -82,7 +87,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             .global_args('-progress', '-', '-loglevel', 'verbose')
             .compile()
         )
-        mssql_update_video_quality(VideoName,Quality,True)
+        mssql_update_video_quality(ConversionID,Quality,'Start')
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         total_duration = None
         percentage = 0
@@ -114,11 +119,12 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     elapsed_time = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
                     percentage = (elapsed_time / total_duration) * 100
                     print(f"Elapsed time: {elapsed_time} seconds, Percentage: {percentage:.2f}%")  # Debug output
-                    redis_update_video_quality(VideoID,VideoName,Quality,round(percentage,2))
+                    redis_update_video_quality(VideoID,ConversionID,VideoName,Quality,round(percentage,2))
 
         
-        redis_update_video_quality(VideoID, VideoName, Quality, 100)
-        CheckConversionEndRedis(VideoID, VideoName)
+        redis_update_video_quality(VideoID,ConversionID, VideoName, Quality, 100)
+        CheckConversionEndRedis(VideoID,ConversionID, VideoName)
+        mssql_update_video_quality(ConversionID,Quality,'End')
         return output_file
     except Exception as e:
         self.update_state(

@@ -15,11 +15,11 @@ OriginalVideos_path= str(os.getenv('ORIGINAL_VIDEOS_PATH'))
 VideoPkField = str(os.getenv("DB_VIDEOPK_FIELD"))
 
 
-@app.route('/api/getVideoID',methods=['GET']) 
-def video_details():
-    response = db_connections.mssql_select_video(request.json['VideoName']) 
-    response={VideoPkField: response[VideoPkField]} 
-    return response,200 
+# @app.route('/api/getVideoID',methods=['GET']) 
+# def video_details():
+#     response = db_connections.mssql_select_video(request.json['VideoName']) 
+#     response={VideoPkField: response[VideoPkField]} 
+#     return response,200 
 
 @app.route('/api/startVideoConversion',methods=['POST']) 
 def video_insert():
@@ -30,8 +30,9 @@ def video_insert():
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
     Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
     if type(VideoID)==NoneType and not os.path.exists(ConvertedVideo_path):
-        VideoData=db_connections.mssql_insert_video(VideoName,Extension,Duration)
+        VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
         Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
+        Conversion.generate_thumbnail(VideoName,Extension,OriginalVideos_path,ConvertedVideos_path)
         return 'Success',200
     elif os.path.exists(ConvertedVideo_path):
         raise Exception("Video directory already present")
