@@ -67,5 +67,5 @@ def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool):
     cursor.close()
 
     
-def redis_check_keyvalue(key):
-    return r.get(key)
+def redis_check_keyvalue(VideoID,ConversionID,VideoName,Quality):
+    return r.get(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}")

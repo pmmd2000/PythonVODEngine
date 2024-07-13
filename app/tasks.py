@@ -1,3 +1,4 @@
+import functions
 from celery_config import celery
 import ffmpeg
 import os
@@ -21,7 +22,6 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         ConversionID=VideoData['FldPkConversion']
         def CurrentDatetime():
             return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
         r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
         mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
         def redis_check_keyvalue(key):
@@ -58,6 +58,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         output_file = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}.m3u8')
         ffmpeg_segment_filename = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
         keyinfo_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.keyinfo')
+        key_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.key')
         VideoID = VideoData['FldPkVideo']
         
         if Quality == 480:
@@ -82,7 +83,11 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 hls_time=4, 
                 hls_list_size=0,
                 hls_segment_filename=ffmpeg_segment_filename,
-                hls_key_info_file=keyinfo_file
+                hls_key_info_file=keyinfo_file,
+                hls_allow_cache=1,
+                hls_enc=1,
+                hls_enc_key=key_file,
+                hls_playlist_type='event',
             )
             .global_args('-progress', '-', '-loglevel', 'verbose')
             .compile()
@@ -125,6 +130,9 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         redis_update_video_quality(VideoID,ConversionID, VideoName, Quality, 100)
         CheckConversionEndRedis(VideoID,ConversionID, VideoName)
         mssql_update_video_quality(ConversionID,Quality,'End')
+        MasterM3U8=functions.WriteMasterM3U8(VideoID,ConversionID,VideoName)
+        with open(os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8'), 'w') as f:
+            f.write(MasterM3U8)
         return output_file
     except Exception as e:
         self.update_state(

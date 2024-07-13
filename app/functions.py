@@ -13,15 +13,15 @@ def RawVideoNameCheck(RawVideoName):
     else:
         return "VideoName Invalid",400
 
-# def CheckConversionEnd(VideoName):
-#     VideoDetails= db_connections.mssql_select_video(VideoName)
-#     if all(VideoDetails[f'FldConvertState{res}'] == 1 for res in [480, 720, 1080]):
-#         db_connections.mssql_update_video_conversion_finished(VideoName,True)
-#     else:
-#         pass
-    
-# def CheckConversionEndRedis(VideoID,VideoName):
-#     if all(db_connections.redis_check_keyvalue(f"{VideoID}-{VideoName}-{res}") == '100' for res in [480, 720, 1080]):
-#         db_connections.mssql_update_video_conversion_finished(VideoName,True)
-#     else:
-#         pass
+def WriteMasterM3U8(VideoID,ConversionID,VideoName):
+    MasterM3U8_1080=""
+    MasterM3U8_720=""
+    MasterM3U8_480=""
+    if db_connections.redis_check_keyvalue(VideoID,ConversionID,VideoName,1080) == '100':
+        MasterM3U8_1080=f'#EXT-X-STREAM-INF:BANDWIDTH=1900000,AVERAGE-BANDWIDTH=1400000,RESOLUTION=1920x1080,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n1080_{VideoName}.m3u8\n'
+    if db_connections.redis_check_keyvalue(VideoID,ConversionID,VideoName,720) == '100':
+        MasterM3U8_720=f'#EXT-X-STREAM-INF:BANDWIDTH=700000,AVERAGE-BANDWIDTH=520000,RESOLUTION=1280x720,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n720_{VideoName}.m3u8\n'
+    if db_connections.redis_check_keyvalue(VideoID,ConversionID,VideoName,480) == '100':
+        MasterM3U8_480=f'#EXT-X-STREAM-INF:BANDWIDTH=450000,AVERAGE-BANDWIDTH=400000,RESOLUTION=854x480,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n480_{VideoName}.m3u8\n'
+    MasterM3U8=f'#EXTM3U\n{MasterM3U8_1080}{MasterM3U8_720}{MasterM3U8_480}'
+    return MasterM3U8
