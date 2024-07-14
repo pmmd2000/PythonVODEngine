@@ -1,4 +1,5 @@
 import os
+from app import db_connections
 from tasks import process_video_task
 import ffmpeg
 
@@ -18,8 +19,9 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
     keyinfo=f"enc.key\n{ConvertedVideo_path}/enc.key\n{EncKeyIVHex}"
     with open(os.path.join(ConvertedVideo_path,'enc.keyinfo'), 'w') as f:
         f.write(keyinfo)
-    
-
+    ConversionID=VideoData['FldPkConversion']
+    VideoID=VideoData['FldFkVideo']
+    db_connections.mssql_insert_chunks(VideoID,VideoName,ConversionID)
     # FFmpeg Conversion:
     for Quality in [480,1080,720]:
         if Quality==480:

@@ -23,6 +23,7 @@ mssql_query_select_all="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion 
 mssql_query_insert_video="INSERT INTO dbo.TblVideo (FldName,FldNameHash,FldExtension) VALUES (%s,%s,%s)"
 mssql_query_insert_conversion="INSERT INTO dbo.TblConversion (FldFkVideo,FldInsertDatetime,FldEncKey,FldEncKeyIV,FldDuration) VALUES (%s,%s,%s,%s,%s)"
 mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
+mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
 
 
 def mssql_select_video(VideoName):
@@ -69,3 +70,13 @@ def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool):
     
 def redis_check_keyvalue(VideoID,ConversionID,VideoName,Quality):
     return r.get(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}")
+
+def mssql_insert_chunks(VideoID,VideoName,ConversionID):
+    cursor = mssql_connection.cursor(as_dict=True)
+    for file in ('enc.key', 'enc.keyinfo', f'thumbnail_{VideoName}.png' , f'{VideoName}.m3u8'):
+        ChunkName,ChunkExtension=os.path.splitext(file)
+        ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()
+        r.hset(f'{VideoID}:{ConversionID}:{VideoName}',file,ChunkHash)
+        cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
+    mssql_connection.commit()
+    cursor.close()

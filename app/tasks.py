@@ -1,3 +1,4 @@
+from exceptiongroup import catch
 import functions
 from celery_config import celery
 import ffmpeg
@@ -8,6 +9,7 @@ import logging
 import pymssql
 import redis
 from datetime import datetime
+from hashlib import sha256
 
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData):
@@ -19,11 +21,13 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         password=os.getenv("DB_PASS"),
         database=os.getenv("DB_NAME","None")
         )
+        hash_salt=os.getenv('HASH_SALT')
         ConversionID=VideoData['FldPkConversion']
         def CurrentDatetime():
             return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
         mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
+        mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
         def redis_check_keyvalue(key):
             return r.get(key)
         def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool,):
@@ -51,7 +55,18 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 cursor.close()
             else:
                 raise TypeError("Arguments not valid")
-        
+        def mssql_insert_chunks(VideoID,ConversionID,Quality,VideoName):
+            OutputDir = os.path.join(ConvertedVideos_path, VideoName)
+            cursor = mssql_connection.cursor(as_dict=True)
+            for file in os.listdir(OutputDir):
+                if file.startswith(str(Quality)):
+                    ChunkName,ChunkExtension=os.path.splitext(file)
+                    ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()
+                    r.hset(f'{VideoID}:{ConversionID}:{VideoName}',file,ChunkHash)
+                    cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
+            mssql_connection.commit()
+            cursor.close()
+
         ###
         Extension= VideoData['FldExtension']
         input_file = os.path.join(OriginalVideo_path, f'{VideoName}{Extension}')
@@ -87,7 +102,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 hls_allow_cache=1,
                 hls_enc=1,
                 hls_enc_key=key_file,
-                hls_playlist_type='event',
+                hls_playlist_type='vod',
             )
             .global_args('-progress', '-', '-loglevel', 'verbose')
             .compile()
@@ -130,6 +145,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         redis_update_video_quality(VideoID,ConversionID, VideoName, Quality, 100)
         CheckConversionEndRedis(VideoID,ConversionID, VideoName)
         mssql_update_video_quality(ConversionID,Quality,'End')
+        mssql_insert_chunks(VideoID,ConversionID,Quality,VideoName)
         MasterM3U8=functions.WriteMasterM3U8(VideoID,ConversionID,VideoName)
         with open(os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8'), 'w') as f:
             f.write(MasterM3U8)

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import db_connections
 import Conversion
 import functions
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 
 load_dotenv()
 app = Flask(__name__)
@@ -13,15 +14,12 @@ app = Flask(__name__)
 ConvertedVideos_path = str(os.getenv('CONVERTED_VIDEOS_PATH'))
 OriginalVideos_path= str(os.getenv('ORIGINAL_VIDEOS_PATH'))
 VideoPkField = str(os.getenv("DB_VIDEOPK_FIELD"))
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+jwt = JWTManager(app)
 
-
-# @app.route('/api/getVideoID',methods=['GET']) 
-# def video_details():
-#     response = db_connections.mssql_select_video(request.json['VideoName']) 
-#     response={VideoPkField: response[VideoPkField]} 
-#     return response,200 
 
 @app.route('/api/startVideoConversion',methods=['POST']) 
+@jwt_required()
 def video_insert():
     RawVideoName=request.json['VideoName'] 
     VideoName=functions.RawVideoNameCheck(RawVideoName)['VideoName']
@@ -38,19 +36,6 @@ def video_insert():
         raise Exception("Video directory already present")
     else:
         return 'Video already present',406
-
-# @app.route('/api/upload', methods=['POST']) 
-# def upload_video():
-#     file = request.files['file']
-#     if 'file' not in request.files:
-#         return jsonify({'error': 'No file part'}), 400
-#     if file.filename == '':
-#         return jsonify({'error': 'No selected file'}), 400
-#     if file:
-#         OriginalVideo_path = os.path.join(OriginalVideos_path, file.filename) 
-#         file.save(OriginalVideo_path)
-#         process_video_task.delay(OriginalVideo_path, ConvertedVideos_path)
-#         return jsonify({'message': 'File uploaded successfully', 'OriginalVideo_path': OriginalVideo_path}), 201
 
 if __name__ == '__main__':
     app.run(debug=True, host=os.getenv('HOST'))
