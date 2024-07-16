@@ -1,4 +1,3 @@
-from logging import exception
 from types import NoneType
 from flask import Flask, request
 import os
@@ -30,12 +29,12 @@ def video_insert():
     if type(VideoID)==NoneType and not os.path.exists(ConvertedVideo_path):
         VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
         Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
-        Conversion.generate_thumbnail(VideoName,Extension,OriginalVideos_path,ConvertedVideos_path)
+        # Conversion.generate_thumbnail(VideoName,Extension,OriginalVideos_path,ConvertedVideos_path)
         return 'Success',200
     elif os.path.exists(ConvertedVideo_path):
         raise Exception("Video directory already present")
     else:
         return 'Video already present',406
 
-if __name__ == '__main__':
-    app.run(debug=True, host=os.getenv('HOST'))
+# if __name__ == '__main__':
+#     app.run(debug=True, host=os.getenv('HOST'))

@@ -34,18 +34,8 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
         process_video_task.apply_async(args=(VideoName,OriginalVideos_path,ConvertedVideos_path,Quality,VideoData),queue='tasks',priority=priority )
         
 def get_video_duration(VideoName,Extension,OriginalVideos_path):
-    video_path=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
-    probe = ffmpeg.probe(video_path)
-    duration = float(probe['format']['duration'])
-    return duration
-
-def generate_thumbnail(VideoName,Extension,OriginalVideos_path,ConvertedVideos_path):
-    video_path=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
-    thumbnail_path=os.path.join(ConvertedVideos_path,VideoName,f'thumbnail_{VideoName}.png')
-    (
-        ffmpeg
-        .input(video_path, ss=0)
-        .filter('scale', 1280, -1)
-        .output(thumbnail_path, vframes=1)
-        .run()
-    )
+    return 20
+    # video_path=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
+    # probe = ffmpeg.probe(video_path)
+    # duration = float(probe['format']['duration'])
+    # return duration

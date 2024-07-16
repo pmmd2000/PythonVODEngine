@@ -1,5 +1,3 @@
-from exceptiongroup import catch
-import functions
 from celery_config import celery
 import ffmpeg
 import os
@@ -10,6 +8,7 @@ import pymssql
 import redis
 from datetime import datetime
 from hashlib import sha256
+import functions
 
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData):
@@ -75,6 +74,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         keyinfo_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.keyinfo')
         key_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.key')
         VideoID = VideoData['FldPkVideo']
+        thumbnail_path=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}.png')
         
         if Quality == 480:
             ffmpeg_resolution = '854x480'
@@ -84,7 +84,13 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             ffmpeg_resolution = '1920x1080'
         else:
             raise Exception("Quality unacceptable")
-
+        (
+            ffmpeg
+            .input(input_file, ss=0)
+            .filter('scale', -1,Quality)
+            .output(thumbnail_path, vframes=1)
+            .run()
+        )
         command = (
             ffmpeg
             .input(input_file)

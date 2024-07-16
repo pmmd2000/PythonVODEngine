@@ -1,0 +1,9 @@
+flask
+python-dotenv
+pymssql
+redis
+flask_jwt_extended
+celery
+kombu
+ffmpeg-python
+Gunicorn

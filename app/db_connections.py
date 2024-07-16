@@ -73,7 +73,7 @@ def redis_check_keyvalue(VideoID,ConversionID,VideoName,Quality):
 
 def mssql_insert_chunks(VideoID,VideoName,ConversionID):
     cursor = mssql_connection.cursor(as_dict=True)
-    for file in ('enc.key', 'enc.keyinfo', f'thumbnail_{VideoName}.png' , f'{VideoName}.m3u8'):
+    for file in ('enc.key', 'enc.keyinfo', f'{VideoName}.m3u8'):
         ChunkName,ChunkExtension=os.path.splitext(file)
         ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()
         r.hset(f'{VideoID}:{ConversionID}:{VideoName}',file,ChunkHash)
