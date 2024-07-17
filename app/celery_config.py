@@ -11,7 +11,7 @@ def make_celery(app_name=__name__):
     celery.conf.task_queues = [Queue('tasks', Exchange('tasks'), routing_key='tasks',queue_arguments={'x-max-priority': 10}),]
     celery.conf.task_acks_late= True
     celery.conf.worker_prefetch_multiplier=1
-    celery.conf.worker_concurrency=3
+    celery.conf.worker_concurrency=1
     celery.conf.task_queue_max_priority = 10
     celery.conf.task_default_priority = 5
     celery.conf.worker_max_tasks_per_child=1

@@ -20,6 +20,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         password=os.getenv("DB_PASS"),
         database=os.getenv("DB_NAME","None")
         )
+        watermark_path=os.getenv('WATERMARK_PATH')
         hash_salt=os.getenv('HASH_SALT')
         ConversionID=VideoData['FldPkConversion']
         def CurrentDatetime():
@@ -65,7 +66,50 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
             mssql_connection.commit()
             cursor.close()
-
+        def watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path):
+            EncKey=VideoData['FldEncKey']
+            EncKeyIV=VideoData['FldEncKeyIV']
+            print('entered the function')
+            for index in range(101,133):
+                encrypted_input_file=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}_0{index}.ts')
+                if os.path.exists(encrypted_input_file):
+                    decrypted_input_file=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}_0{index}_b.ts')
+                    decrypted_watermarked_file=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}_0{index}_e.ts')
+                    encrypted_watermarked_file=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}_0{index}_watermarked.ts')
+                    watermark_file=os.path.join(watermark_path,f'watermark_{Quality}.png')
+                    openssl_decrypt_command = [
+                    "openssl",
+                    "aes-128-cbc",
+                    "-d",
+                    "-in", encrypted_input_file,
+                    "-out", decrypted_input_file,
+                    "-iv", EncKeyIV,
+                    "-K", EncKey
+                    ]
+                    subprocess.run(openssl_decrypt_command, check=True)
+                    ffmpeg_inwatermark=ffmpeg.input(watermark_file)
+                    (
+                        ffmpeg
+                        .input(decrypted_input_file)
+                        .overlay(ffmpeg_inwatermark)
+                        .output(decrypted_watermarked_file, vcodec='libx264', acodec='copy', copyts=None, vsync=0, muxdelay=0)
+                        .run()
+                    )
+                    openssl_encrypt_command = [
+                    "openssl",
+                    "aes-128-cbc",
+                    "-e",
+                    "-in", decrypted_watermarked_file,
+                    "-out", encrypted_watermarked_file,
+                    "-iv", EncKeyIV,
+                    "-K", EncKey
+                    ]
+                    subprocess.run(openssl_encrypt_command, check=True)
+                    os.remove(decrypted_input_file)
+                    os.remove(decrypted_watermarked_file)
+                    
+                else:
+                    pass
         ###
         Extension= VideoData['FldExtension']
         input_file = os.path.join(OriginalVideo_path, f'{VideoName}{Extension}')
@@ -151,6 +195,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         redis_update_video_quality(VideoID,ConversionID, VideoName, Quality, 100)
         CheckConversionEndRedis(VideoID,ConversionID, VideoName)
         mssql_update_video_quality(ConversionID,Quality,'End')
+        watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path)
         mssql_insert_chunks(VideoID,ConversionID,Quality,VideoName)
         MasterM3U8=functions.WriteMasterM3U8(VideoID,ConversionID,VideoName)
         with open(os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8'), 'w') as f:

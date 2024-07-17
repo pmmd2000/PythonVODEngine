@@ -36,5 +36,5 @@ def video_insert():
     else:
         return 'Video already present',406
 
-# if __name__ == '__main__':
-#     app.run(debug=True, host=os.getenv('HOST'))
+if __name__ == '__main__':
+    app.run(debug=True, host=os.getenv('HOST'), port=5001)
