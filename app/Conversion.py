@@ -34,8 +34,7 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
         process_video_task.apply_async(args=(VideoName,OriginalVideos_path,ConvertedVideos_path,Quality,VideoData),queue='tasks',priority=priority )
         
 def get_video_duration(VideoName,Extension,OriginalVideos_path):
-    return 20
-    # video_path=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
-    # probe = ffmpeg.probe(video_path)
-    # duration = float(probe['format']['duration'])
-    # return duration
+    video_path=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
+    probe = ffmpeg.probe(video_path)
+    duration = float(probe['format']['duration'])
+    return duration

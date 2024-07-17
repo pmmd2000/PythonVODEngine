@@ -88,7 +88,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             ffmpeg
             .input(input_file, ss=0)
             .filter('scale', -1,Quality)
-            .output(thumbnail_path, vframes=1)
+            .output(thumbnail_path, vframes=1, update=1)
             .run()
         )
         command = (
