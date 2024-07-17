@@ -1,6 +1,10 @@
 # Python VOD Engine
 
-Python VOD Engine is a project that uses Celery, RabbitMQ, Redis, and FFmpeg in its core to receive and convert videos to hls streams.
+It's a project that uses Celery, RabbitMQ, Redis, MSSQL and FFmpeg in its core to receive and convert videos to hls streams.
+
+By default it's using two separate Dockerfiles from the same source to form flask and celery images, both of them can be up scaled horizantally, so your FFmpeg transcoding power and flask ingesting web server can be scaled infinitely.
+
+It's using RabbitMQ as its connection broker and redis to store celery manifests and some cached data, the process will be entirely logged on MSSQL for further use.
 
 ### Prerequisites
 
