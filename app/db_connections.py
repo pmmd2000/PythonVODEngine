@@ -18,6 +18,7 @@ r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), deco
 
 hash_salt=os.getenv('HASH_SALT')
 mssql_query_select_video="SELECT * FROM dbo.TblVideo WHERE FldName=%s"
+mssql_query_select_video_star="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkVideo=FldFkVideo"
 mssql_query_select_conversion="SELECT * FROM dbo.TblConversion WHERE FldFkVideo=%s"
 mssql_query_select_all="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkVideo=FldFkVideo WHERE FldPkConversion=%s"
 mssql_query_insert_video="INSERT INTO dbo.TblVideo (FldName,FldNameHash,FldExtension) VALUES (%s,%s,%s)"
@@ -25,14 +26,18 @@ mssql_query_insert_conversion="INSERT INTO dbo.TblConversion (FldFkVideo,FldInse
 mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
 mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
 
-
+def mssql_select_video_star():
+    cursor = mssql_connection.cursor(as_dict=True)
+    cursor.execute(mssql_query_select_video_star)
+    record = cursor.fetchall()
+    cursor.close()
+    return record
 def mssql_select_video(VideoName):
     cursor = mssql_connection.cursor(as_dict=True)
     cursor.execute(mssql_query_select_video,(VideoName,))
     record = cursor.fetchone()
     cursor.close()
     return record
-
 def mssql_insert_video(VideoName,Extension,Duration):
     video_name_hash=sha256((VideoName+hash_salt).encode('utf-8')).hexdigest()
     current_datetime=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -59,18 +64,14 @@ def mssql_insert_video(VideoName,Extension,Duration):
     
     cursor.close()
     return record
-
 def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool):
     cursor = mssql_connection.cursor(as_dict=True)
     query = mssql_query_update_video.format("FldConvertIsFinished")
     cursor.execute(query, (int(ConversionState), ConversionID))
     mssql_connection.commit()
-    cursor.close()
-
-    
+    cursor.close()   
 def redis_check_keyvalue(VideoID,ConversionID,VideoName,Quality):
     return r.get(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}")
-
 def mssql_insert_chunks(VideoID,VideoName,ConversionID):
     cursor = mssql_connection.cursor(as_dict=True)
     for file in ('enc.key', 'enc.keyinfo', f'{VideoName}.m3u8'):

@@ -11,7 +11,7 @@ from hashlib import sha256
 import functions
 
 @celery.task(bind=True)
-def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData):
+def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData,ffmpeg_resolution):
     try:
         
         mssql_connection = pymssql.connect(
@@ -44,9 +44,9 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 mssql_update_video_conversion_finished(ConversionID,True)
             else:
                 pass
-        def redis_update_video_quality(VideoID,ConversionID, video_name, Quality: int, QualityPercentile:float):
+        def redis_update_video_quality(VideoID,ConversionID, VideoName, Quality: int, QualityPercentile:float):
             if Quality in (480, 720, 1080):
-                r.set(f"{VideoID}:{ConversionID}:{video_name}-{Quality}",str(QualityPercentile),ex=86400)
+                r.set(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}",str(QualityPercentile),ex=86400)
             else:
                 raise TypeError("Quality not valid")
         def mssql_update_video_quality(ConversionID, Quality: int,StartorEnd):
@@ -113,21 +113,13 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     
                 else:
                     pass
-        def ffmpeg_conversion(ConversionID,Quality):
+        def ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution):
             OriginalVideo_Name = os.path.join(OriginalVideo_path, f'{VideoName}{Extension}')
             ConvertedVideo_m3u8 = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}.m3u8')
             Thumbnail_Path=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}.png')
             FFmpegSegment_Name = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
             EncKeyInfo_File = os.path.join(ConvertedVideos_path, VideoName, 'enc.keyinfo')
             EncKey_File = os.path.join(ConvertedVideos_path, VideoName, 'enc.key')
-            if Quality == 480:
-                ffmpeg_resolution = '854x480'
-            elif Quality == 720:
-                ffmpeg_resolution = '1280x720'
-            elif Quality == 1080:
-                ffmpeg_resolution = '1920x1080'
-            else:
-                raise Exception("Quality unacceptable")
             (
                 ffmpeg
                 .input(OriginalVideo_Name, ss=0)
@@ -190,7 +182,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                         print(f"Elapsed time: {elapsed_time} seconds, Percentage: {percentage:.2f}%")  # Debug output
                         redis_update_video_quality(VideoID,ConversionID,VideoName,Quality,round(percentage,2))
 
-        ffmpeg_conversion(ConversionID,Quality)
+        ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution)
         redis_update_video_quality(VideoID,ConversionID, VideoName, Quality, 100)
         CheckConversionEndRedis(VideoID,ConversionID, VideoName)
         mssql_update_video_quality(ConversionID,Quality,'End')
@@ -199,7 +191,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         MasterM3U8=functions.WriteMasterM3U8(VideoID,ConversionID,VideoName)
         with open(os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8'), 'w') as f:
             f.write(MasterM3U8)
-        return ConversionID
+        return f"{VideoID}:{ConversionID}:{VideoName}-{Quality}"
     except Exception as e:
         self.update_state(
             state='FAILURE',

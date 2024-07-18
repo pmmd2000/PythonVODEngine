@@ -25,13 +25,16 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
     # FFmpeg Conversion:
     for Quality in [480,1080,720]:
         if Quality==480:
+            ffmpeg_resolution = '854x480'
             priority=5
         elif Quality==720:
+            ffmpeg_resolution = '1280x720'
             priority=3
         elif Quality==1080:
+            ffmpeg_resolution = '1920x1080'
             priority=1
             
-        process_video_task.apply_async(args=(VideoName,OriginalVideos_path,ConvertedVideos_path,Quality,VideoData),queue='tasks',priority=priority )
+        process_video_task.apply_async(args=(VideoName,OriginalVideos_path,ConvertedVideos_path,Quality,VideoData,ffmpeg_resolution),queue='tasks',priority=priority )
         
 def get_video_duration(VideoName,Extension,OriginalVideos_path):
     video_path=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
