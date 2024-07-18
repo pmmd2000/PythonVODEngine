@@ -13,21 +13,24 @@ import functions
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData):
     try:
-        ###
+        
         mssql_connection = pymssql.connect(
         server=os.getenv("DB_HOST","None"),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASS"),
         database=os.getenv("DB_NAME","None")
         )
-        watermark_path=os.getenv('WATERMARK_PATH')
-        hash_salt=os.getenv('HASH_SALT')
-        ConversionID=VideoData['FldPkConversion']
-        def CurrentDatetime():
-            return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
         mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
         mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
+        watermark_path=os.getenv('WATERMARK_PATH')
+        hash_salt=os.getenv('HASH_SALT')
+        ConversionID=VideoData['FldPkConversion']
+        Extension= VideoData['FldExtension']
+        VideoID = VideoData['FldPkVideo']
+        
+        def CurrentDatetime():
+            return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         def redis_check_keyvalue(key):
             return r.get(key)
         def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool,):
@@ -110,88 +113,84 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     
                 else:
                     pass
-        ###
-        Extension= VideoData['FldExtension']
-        input_file = os.path.join(OriginalVideo_path, f'{VideoName}{Extension}')
-        output_file = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}.m3u8')
-        ffmpeg_segment_filename = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
-        keyinfo_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.keyinfo')
-        key_file = os.path.join(ConvertedVideos_path, VideoName, 'enc.key')
-        VideoID = VideoData['FldPkVideo']
-        thumbnail_path=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}.png')
-        
-        if Quality == 480:
-            ffmpeg_resolution = '854x480'
-        elif Quality == 720:
-            ffmpeg_resolution = '1280x720'
-        elif Quality == 1080:
-            ffmpeg_resolution = '1920x1080'
-        else:
-            raise Exception("Quality unacceptable")
-        (
-            ffmpeg
-            .input(input_file, ss=0)
-            .filter('scale', -1,Quality)
-            .output(thumbnail_path, vframes=1, update=1)
-            .run()
-        )
-        command = (
-            ffmpeg
-            .input(input_file)
-            .output(
-                output_file, 
-                s=ffmpeg_resolution, 
-                vcodec='libx264', 
-                max_muxing_queue_size=9999, 
-                preset='veryfast', 
-                start_number=0, 
-                hls_time=4, 
-                hls_list_size=0,
-                hls_segment_filename=ffmpeg_segment_filename,
-                hls_key_info_file=keyinfo_file,
-                hls_allow_cache=1,
-                hls_enc=1,
-                hls_enc_key=key_file,
-                hls_playlist_type='vod',
+        def ffmpeg_conversion(ConversionID,Quality):
+            OriginalVideo_Name = os.path.join(OriginalVideo_path, f'{VideoName}{Extension}')
+            ConvertedVideo_m3u8 = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}.m3u8')
+            Thumbnail_Path=os.path.join(ConvertedVideos_path,VideoName,f'{Quality}_{VideoName}.png')
+            FFmpegSegment_Name = os.path.join(ConvertedVideos_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
+            EncKeyInfo_File = os.path.join(ConvertedVideos_path, VideoName, 'enc.keyinfo')
+            EncKey_File = os.path.join(ConvertedVideos_path, VideoName, 'enc.key')
+            if Quality == 480:
+                ffmpeg_resolution = '854x480'
+            elif Quality == 720:
+                ffmpeg_resolution = '1280x720'
+            elif Quality == 1080:
+                ffmpeg_resolution = '1920x1080'
+            else:
+                raise Exception("Quality unacceptable")
+            (
+                ffmpeg
+                .input(OriginalVideo_Name, ss=0)
+                .filter('scale', -1,Quality)
+                .output(Thumbnail_Path, vframes=1, update=1)
+                .run()
             )
-            .global_args('-progress', '-', '-loglevel', 'verbose')
-            .compile()
-        )
-        mssql_update_video_quality(ConversionID,Quality,'Start')
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        total_duration = None
-        percentage = 0
-        
-        duration_regex = re.compile(r"Duration: (\d+):(\d+):(\d+).(\d+)")
-        time_regex = re.compile(r"time=(\d+):(\d+):(\d+).(\d+)")
+            command = (
+                ffmpeg
+                .input(OriginalVideo_Name)
+                .output(
+                    ConvertedVideo_m3u8, 
+                    s=ffmpeg_resolution, 
+                    vcodec='libx264', 
+                    max_muxing_queue_size=9999, 
+                    preset='veryfast', 
+                    start_number=0, 
+                    hls_time=4, 
+                    hls_list_size=0,
+                    hls_segment_filename=FFmpegSegment_Name,
+                    hls_key_info_file=EncKeyInfo_File,
+                    hls_allow_cache=1,
+                    hls_enc=1,
+                    hls_enc_key=EncKey_File,
+                    hls_playlist_type='vod',
+                )
+                .global_args('-progress', '-', '-loglevel', 'verbose')
+                .compile()
+            )
+            mssql_update_video_quality(ConversionID,Quality,'Start')
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            total_duration = None
+            percentage = 0
+            
+            duration_regex = re.compile(r"Duration: (\d+):(\d+):(\d+).(\d+)")
+            time_regex = re.compile(r"time=(\d+):(\d+):(\d+).(\d+)")
 
-        while True:
-            line = process.stderr.readline()
-            if line == '' and process.poll() is not None:
-                break
-            if line:
-                if total_duration is None:
-                    match = duration_regex.search(line)
-                    if match:
+            while True:
+                line = process.stderr.readline()
+                if line == '' and process.poll() is not None:
+                    break
+                if line:
+                    if total_duration is None:
+                        match = duration_regex.search(line)
+                        if match:
+                            hours = int(match.group(1))
+                            minutes = int(match.group(2))
+                            seconds = int(match.group(3))
+                            milliseconds = int(match.group(4))
+                            total_duration = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
+
+                    match = time_regex.search(line)
+                    if match and total_duration:
                         hours = int(match.group(1))
                         minutes = int(match.group(2))
                         seconds = int(match.group(3))
                         milliseconds = int(match.group(4))
-                        total_duration = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
-                        # print(f"Total duration: {total_duration} seconds")  # Debug output
+                        elapsed_time = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
+                        percentage = (elapsed_time / total_duration) * 100
+                        print(f"Elapsed time: {elapsed_time} seconds, Percentage: {percentage:.2f}%")  # Debug output
+                        redis_update_video_quality(VideoID,ConversionID,VideoName,Quality,round(percentage,2))
 
-                match = time_regex.search(line)
-                if match and total_duration:
-                    hours = int(match.group(1))
-                    minutes = int(match.group(2))
-                    seconds = int(match.group(3))
-                    milliseconds = int(match.group(4))
-                    elapsed_time = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
-                    percentage = (elapsed_time / total_duration) * 100
-                    print(f"Elapsed time: {elapsed_time} seconds, Percentage: {percentage:.2f}%")  # Debug output
-                    redis_update_video_quality(VideoID,ConversionID,VideoName,Quality,round(percentage,2))
-
-        
+        ffmpeg_conversion(ConversionID,Quality)
         redis_update_video_quality(VideoID,ConversionID, VideoName, Quality, 100)
         CheckConversionEndRedis(VideoID,ConversionID, VideoName)
         mssql_update_video_quality(ConversionID,Quality,'End')
@@ -200,7 +199,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         MasterM3U8=functions.WriteMasterM3U8(VideoID,ConversionID,VideoName)
         with open(os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8'), 'w') as f:
             f.write(MasterM3U8)
-        return output_file
+        return ConversionID
     except Exception as e:
         self.update_state(
             state='FAILURE',
@@ -208,5 +207,4 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         )
         raise
 
-# Ensure Celery logging is set to INFO level
 logging.basicConfig(level=logging.INFO)

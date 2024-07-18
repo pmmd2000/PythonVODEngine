@@ -6,9 +6,12 @@ import db_connections
 import Conversion
 import functions
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
+from flask_cors import CORS
 
-load_dotenv()
 app = Flask(__name__)
+load_dotenv()
+
+CORS(app, resources={r"/*": {"origins": os.getenv('CORS_ORIGIN_DOMAIN')}}, supports_credentials=True)
 
 ConvertedVideos_path = str(os.getenv('CONVERTED_VIDEOS_PATH'))
 OriginalVideos_path= str(os.getenv('ORIGINAL_VIDEOS_PATH'))
@@ -29,7 +32,6 @@ def video_insert():
     if type(VideoID)==NoneType and not os.path.exists(ConvertedVideo_path):
         VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
         Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
-        # Conversion.generate_thumbnail(VideoName,Extension,OriginalVideos_path,ConvertedVideos_path)
         return 'Success',200
     elif os.path.exists(ConvertedVideo_path):
         raise Exception("Video directory already present")
