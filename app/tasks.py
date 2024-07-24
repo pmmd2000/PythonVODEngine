@@ -188,9 +188,9 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         mssql_update_video_quality(ConversionID,Quality,'End')
         watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path)
         mssql_insert_chunks(VideoID,ConversionID,Quality,VideoName)
-        MasterM3U8=functions.WriteMasterM3U8(VideoID,ConversionID,VideoName)
-        with open(os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8'), 'w') as f:
-            f.write(MasterM3U8)
+        functions.WriteMasterM3U8(VideoID,ConversionID,VideoName,ConvertedVideos_path)
+        
+
         return f"{VideoID}:{ConversionID}:{VideoName}-{Quality}"
     except Exception as e:
         self.update_state(

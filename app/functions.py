@@ -13,7 +13,7 @@ def RawVideoNameCheck(RawVideoName):
     else:
         return "VideoName Invalid",400
 
-def WriteMasterM3U8(VideoID,ConversionID,VideoName):
+def WriteMasterM3U8(VideoID,ConversionID,VideoName,ConvertedVideos_path):
     MasterM3U8_1080=""
     MasterM3U8_720=""
     MasterM3U8_480=""
@@ -24,4 +24,9 @@ def WriteMasterM3U8(VideoID,ConversionID,VideoName):
     if db_connections.redis_check_keyvalue(VideoID,ConversionID,VideoName,480) == '100':
         MasterM3U8_480=f'#EXT-X-STREAM-INF:BANDWIDTH=450000,AVERAGE-BANDWIDTH=400000,RESOLUTION=854x480,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n480_{VideoName}.m3u8\n'
     MasterM3U8=f'#EXTM3U\n{MasterM3U8_1080}{MasterM3U8_720}{MasterM3U8_480}'
+    with open(os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8'), 'w') as f:
+        f.write(MasterM3U8)
     return MasterM3U8
+
+# def scp(VideoID,ConversionID,VideoName,ConvertedVideos_path,destination):
+    

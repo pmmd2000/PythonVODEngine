@@ -37,19 +37,19 @@ def video_insert():
     VideoData= db_connections.mssql_select_video(VideoName)
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
     OriginalVideo_File=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
-    Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
     if type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path) and os.path.exists(OriginalVideo_File):
+        Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
         VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
         Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
         return 'Success',200
     elif os.path.exists(ConvertedVideo_path):
-        raise Exception("Video already present")
+        return "Video already present", 406 
     elif not type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path):
-        return 'Previously converted video not found',406
+        return 'Previously converted video missing', 406
     elif type(VideoData)==NoneType and not os.path.exists(OriginalVideo_File):
         return 'Video file missing', 404
 
-@app.route('/api/uploadVideo',methods=['POST']) 
+@app.route('/api/uploadVideo',methods=['POST'])
 @jwt_required()
 def video_upload():
     file = request.files["file"]

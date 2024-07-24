@@ -1,0 +1,145 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Video Conversion API",
+    "description": "Tamland Video Conversion System API Documentation",
+    "version": "1.0"
+  },
+  "host": "vod.taamland.ir:443",
+  "basePath": "/api",
+  "schemes": [
+    "https"
+  ],
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header",
+      "description": "JWT token to authorize requests. Format: 'Bearer {token}'"
+    }
+  },
+  "security": [
+    {
+      "Bearer": []
+    }
+  ],
+  "paths": {
+    "/startVideoConversion": {
+      "post": {
+        "summary": "Start Video Conversion",
+        "description": "For videos that are already present on the server, send video name (defaults to mp4 with no extension) to start the process",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "VideoName": {
+                  "type": "string",
+                  "example": "example_video.mp4"
+                }
+              },
+              "required": [
+                "VideoName"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Video conversion started"
+          },
+          "401": {
+            "description": "Token not valid"
+          },
+          "500": {
+            "description": "Server error"
+          },
+          "406": {
+            "description": "Request not applicable"
+          },
+          "404": {
+            "description": "Video not found"
+          }
+        }
+      }
+    },
+    "/uploadVideo": {
+      "post": {
+        "summary": "Upload Video File Chunks",
+        "description": "Uploads a video file chunk by chunk using Dropzone.js.",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "formData",
+            "description": "The video file chunk being uploaded.",
+            "required": true,
+            "type": "file"
+          },
+          {
+            "name": "dzuuid",
+            "in": "formData",
+            "description": "Unique identifier for the file.",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "dzchunkindex",
+            "in": "formData",
+            "description": "The index of the chunk being uploaded.",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "dzchunkbyteoffset",
+            "in": "formData",
+            "description": "The byte offset for the current chunk.",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "dztotalchunkcount",
+            "in": "formData",
+            "description": "The total number of chunks the file is divided into.",
+            "required": true,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "dztotalfilesize",
+            "in": "formData",
+            "description": "The total size of the file being uploaded.",
+            "required": true,
+            "type": "integer",
+            "format": "int64"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunk upload successful."
+          },
+          "500": {
+            "description": "Error saving file or size mismatch."
+          }
+        }
+      }
+    },
+    "/getVideoList": {
+      "get": {
+        "summary": "Get Video List",
+        "description": "Get all videos details",
+        "responses": {
+          "200": {
+            "description": "Successful"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    }
+  }
+}

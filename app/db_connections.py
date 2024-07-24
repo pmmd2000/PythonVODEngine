@@ -26,6 +26,9 @@ mssql_query_insert_conversion="INSERT INTO dbo.TblConversion (FldFkVideo,FldInse
 mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
 mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
 
+def redis_check_keyvalue(VideoID,ConversionID,VideoName,Quality):
+    return r.get(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}")
+
 def mssql_select_video_star():
     cursor = mssql_connection.cursor(as_dict=True)
     cursor.execute(mssql_query_select_video_star)
@@ -70,8 +73,6 @@ def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool):
     cursor.execute(query, (int(ConversionState), ConversionID))
     mssql_connection.commit()
     cursor.close()   
-def redis_check_keyvalue(VideoID,ConversionID,VideoName,Quality):
-    return r.get(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}")
 def mssql_insert_chunks(VideoID,VideoName,ConversionID):
     cursor = mssql_connection.cursor(as_dict=True)
     for file in ('enc.key', 'enc.keyinfo', f'{VideoName}.m3u8'):
