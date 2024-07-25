@@ -41,7 +41,7 @@ def video_insert():
         Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
         VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
         Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
-        return 'Success',200
+        return {k: VideoData[k] for k in ["FldPkVideo", "FldPkConversion"]},200
     elif os.path.exists(ConvertedVideo_path):
         return "Video already present", 406 
     elif not type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path):
