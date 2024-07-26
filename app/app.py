@@ -27,7 +27,7 @@ def video_list():
     VideoData= db_connections.mssql_select_video_star()
     return VideoData, 200
 
-@app.route('/api/startVideoConversion',methods=['POST']) 
+@app.post('/api/startVideoConversion') 
 @jwt_required()
 def video_insert():
     RawVideoName=request.json['VideoName'] 
@@ -41,7 +41,7 @@ def video_insert():
         Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
         VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
         Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
-        return {k: VideoData[k] for k in ["FldPkVideo", "FldPkConversion"]},200
+        return {'VideoID':VideoData['FldPkVideo'],'ConversionID':VideoData['FldPkConversion']},200
     elif os.path.exists(ConvertedVideo_path):
         return "Video already present", 406 
     elif not type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path):
@@ -49,7 +49,7 @@ def video_insert():
     elif type(VideoData)==NoneType and not os.path.exists(OriginalVideo_File):
         return 'Video file missing', 404
 
-@app.route('/api/uploadVideo',methods=['POST'])
+@app.post('/api/uploadVideo')
 @jwt_required()
 def video_upload():
     file = request.files["file"]
@@ -75,5 +75,14 @@ def video_upload():
 
     return "Chunk upload successful.", 200    
     
+@app.get('/api/getVideoProgress')
+@jwt_required()
+def video_progress():
+    ConversionID=request.json['ConversionID']
+    Quality=request.json['Quality']
+    Progress=db_connections.redis_check_keyvalue(ConversionID,Quality)
+    return Progress
+    
+
 if __name__ == '__main__':
     app.run(debug=True, host=os.getenv('HOST'), port=5001)

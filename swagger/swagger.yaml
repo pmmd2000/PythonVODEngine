@@ -3,7 +3,7 @@ info:
   title: Video Conversion APIs
   description: Tamland Video Conversion System API Documentation
   version: '0.1.0'
-host: vod.taamland.ir:443
+host: vod.taamland.ir
 basePath: /api
 schemes:
   - https
@@ -12,8 +12,7 @@ securityDefinitions:
     type: apiKey
     name: Authorization
     in: header
-    description: JWT token to authorize requests.
-    Format: 'Bearer {token}'
+    description: JWT token to authorize requests. Format should be 'Bearer {token}'
 security:
   - Bearer: []
 paths:
@@ -33,21 +32,19 @@ paths:
             required:
               - VideoName
       responses:
-        '200':
+        200:
           description: Video conversion started, returns corresponding videoID and conversionID
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  FldPkConversion:
-                    type: integer
-                    format: int64
-                    example: 1
-                  FldPkVideo:
-                    type: integer
-                    format: int64
-                    example: 15
+          schema:
+            type: object
+            properties:
+              ConversionID:
+                type: integer
+                format: int64
+                example: 24
+              VideoID:
+                type: integer
+                format: int64
+                example: 15
         401:
           description: Token not valid
         500:
@@ -60,6 +57,8 @@ paths:
     post:
       summary: Upload Video File Chunks
       description: Uploads a video file chunk by chunk using Dropzone.js.
+      consumes:
+        - multipart/form-data
       parameters:
         - name: file
           in: formData
@@ -107,5 +106,34 @@ paths:
       responses:
         200:
           description: Successful
+        500:
+          description: Server error
+  /getVideoProgress:
+    get:
+      parameters:
+        - name: body
+          in: body
+          schema:
+            type: object
+            properties:
+              ConversionID:
+                type: integer
+                format: int64
+                example: 24
+              Quality:
+                type: integer
+                format: int64
+                example: 720
+            required:
+              - ConversionID
+              - Quality
+      summary: Get Video List
+      description: Get all videos details
+      responses:
+        200:
+          description: returns conversion progress in percentages
+          schema:
+            type: integer
+            example: 59.24
         500:
           description: Server error

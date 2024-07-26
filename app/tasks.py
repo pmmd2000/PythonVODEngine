@@ -40,13 +40,13 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             mssql_connection.commit()
             cursor.close()        
         def CheckConversionEndRedis(VideoID,ConversionID,VideoName):
-            if all(redis_check_keyvalue(f"{VideoID}:{ConversionID}:{VideoName}-{res}") == '100' for res in [480, 720, 1080]):
+            if all(redis_check_keyvalue(f"{ConversionID}:{res}") == '100' for res in [480, 720, 1080]):
                 mssql_update_video_conversion_finished(ConversionID,True)
             else:
                 pass
         def redis_update_video_quality(VideoID,ConversionID, VideoName, Quality: int, QualityPercentile:float):
             if Quality in (480, 720, 1080):
-                r.set(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}",str(QualityPercentile),ex=86400)
+                r.set(f"{ConversionID}:{Quality}",str(QualityPercentile),ex=86400)
             else:
                 raise TypeError("Quality not valid")
         def mssql_update_video_quality(ConversionID, Quality: int,StartorEnd):
@@ -191,7 +191,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         functions.WriteMasterM3U8(VideoID,ConversionID,VideoName,ConvertedVideos_path)
         
 
-        return f"{VideoID}:{ConversionID}:{VideoName}-{Quality}"
+        return f"{ConversionID}:{Quality}"
     except Exception as e:
         self.update_state(
             state='FAILURE',

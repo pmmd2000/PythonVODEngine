@@ -26,8 +26,8 @@ mssql_query_insert_conversion="INSERT INTO dbo.TblConversion (FldFkVideo,FldInse
 mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
 mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
 
-def redis_check_keyvalue(VideoID,ConversionID,VideoName,Quality):
-    return r.get(f"{VideoID}:{ConversionID}:{VideoName}-{Quality}")
+def redis_check_keyvalue(ConversionID,Quality):
+    return r.get(f"{ConversionID}:{Quality}")
 
 def mssql_select_video_star():
     cursor = mssql_connection.cursor(as_dict=True)
