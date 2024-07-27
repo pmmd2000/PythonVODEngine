@@ -1,6 +1,8 @@
+from fileinput import filename
 import re
 import os
 import db_connections
+from urllib.parse import urljoin
 
 def RawVideoNameCheck(RawVideoName):
     RegExExtention= r'^[\w]+\.[\w]+$'
@@ -13,7 +15,7 @@ def RawVideoNameCheck(RawVideoName):
     else:
         return "VideoName Invalid",400
 
-def WriteMasterM3U8(VideoID,ConversionID,VideoName,ConvertedVideos_path):
+def WriteMasterM3U8(ConversionID,VideoName,ConvertedVideos_path):
     MasterM3U8_1080=""
     MasterM3U8_720=""
     MasterM3U8_480=""
@@ -30,3 +32,18 @@ def WriteMasterM3U8(VideoID,ConversionID,VideoName,ConvertedVideos_path):
 
 # def scp(VideoID,ConversionID,VideoName,ConvertedVideos_path,destination):
     
+def complete_url(base_url, *objects):
+    if base_url.endswith('/'):
+        base_url = base_url[:-1]
+    if base_url.startswith('/'):
+        base_url = base_url[1:]
+    path = ''
+    for obj in objects:
+        if not obj.startswith('/'):
+            obj = '/' + obj
+        if obj.endswith('/'):
+            obj = obj[:-1]
+        path += obj
+    complete_url = base_url + path
+    return complete_url
+

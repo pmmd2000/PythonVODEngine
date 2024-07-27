@@ -20,11 +20,17 @@ OriginalVideos_path= str(os.getenv('ORIGINAL_VIDEOS_PATH'))
 VideoPkField = str(os.getenv("DB_VIDEOPK_FIELD"))
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 jwt = JWTManager(app)
+base_url = f"{os.getenv('PROTOCOL')}://{os.getenv('HOST')}"
 
-@app.get('/api/getVideoList')
+@app.get('/api/getVideos')
 @jwt_required()
 def video_list():
     VideoData= db_connections.mssql_select_video_star()
+    print(base_url)
+    for video in VideoData:
+        VideoName = video['VideoName']
+        thumbnail = functions.complete_url(base_url,ConvertedVideos_path,VideoName,f'480_{VideoName}.png')
+        video['thumbnail']=thumbnail
     return VideoData, 200
 
 @app.post('/api/startVideoConversion') 
@@ -85,4 +91,4 @@ def video_progress():
     
 
 if __name__ == '__main__':
-    app.run(debug=True, host=os.getenv('HOST'), port=5001)
+    app.run(debug=True, host='31.25.90.236', port=5001)

@@ -18,7 +18,8 @@ r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), deco
 
 hash_salt=os.getenv('HASH_SALT')
 mssql_query_select_video="SELECT * FROM dbo.TblVideo WHERE FldName=%s"
-mssql_query_select_video_star="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkVideo=FldFkVideo"
+mssql_query_select_video_star="SELECT FldPkVideo as VideoID,FldName as VideoName FROM dbo.TblVideo"
+mssql_query_select_video_conversion="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkVideo=FldFkVideo"
 mssql_query_select_conversion="SELECT * FROM dbo.TblConversion WHERE FldFkVideo=%s"
 mssql_query_select_all="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkVideo=FldFkVideo WHERE FldPkConversion=%s"
 mssql_query_insert_video="INSERT INTO dbo.TblVideo (FldName,FldNameHash,FldExtension) VALUES (%s,%s,%s)"
