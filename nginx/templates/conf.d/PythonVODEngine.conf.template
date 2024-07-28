@@ -19,6 +19,22 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
         if ($http_user_agent = "") {
             return 403;
         }
+        location /api/ {
+            access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
+            add_header 'Access-Control-Expose-Headers' 'Content-Length';
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+            proxy_cache off;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_pass http://gunicorn:5000;
+            proxy_read_timeout 900;
+        }
         location ~ /${CONVERTED_VIDEOS_PATH}/.+\.(m3u8|key)$ {
             access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
             add_header 'Access-Control-Expose-Headers' 'Content-Length';
