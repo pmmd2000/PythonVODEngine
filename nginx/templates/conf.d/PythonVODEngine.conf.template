@@ -1,0 +1,54 @@
+log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_iso8601", "request": "$request", "status": $status, "referer": "$http_referer" , "bytes_sent": $bytes_sent,"auth": "$arg_auth","device": "$arg_user", "resp_time": $request_time, "file_path":"$request_filename"}';
+    server {
+        access_log off;
+        listen 443 ssl;
+        server_name ${HOST} www.${HOST};
+        ssl_certificate /etc/nginx/certs/${SSL_CRT};
+        ssl_certificate_key /etc/nginx/certs/${SSL_KEY};
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+        ssl_session_cache shared:SSL:1m;
+        ssl_session_timeout 10m;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+        if ($http_referer !~* (${HOST}) ) {
+            return 403;
+        }
+        if ($http_user_agent ~* (curl|wget|vlc) ) {
+            return 403;
+        }
+        if ($http_user_agent = "") {
+            return 403;
+        }
+        location ~ /${CONVERTED_VIDEOS_PATH}/.+\.(m3u8|key)$ {
+            access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
+            add_header 'Access-Control-Expose-Headers' 'Content-Length';
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+            proxy_cache off;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_pass http://gunicorn:5000;
+            proxy_read_timeout 900;
+        }
+        location /${CONVERTED_VIDEOS_PATH}/ {
+            add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
+            add_header 'Access-Control-Expose-Headers' 'Content-Length';
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
+                add_header 'Access-Control-Max-Age' 1728000;
+                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Length' 0;
+                return 204;
+            }
+            alias /${CONVERTED_VIDEOS_PATH}/;
+            types {
+                video/mp2t ts;
+                application/vnd.apple.mpegurl m3u8;
+            }
+        }
+    }

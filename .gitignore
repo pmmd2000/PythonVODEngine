@@ -1,8 +1,10 @@
 *Videos/
 done/
 *.log
+logs/
 *logs/
 *static/
+certs/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

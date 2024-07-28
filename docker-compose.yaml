@@ -1,22 +1,35 @@
 services:
-  flask:
+  gunicorn:
     build: 
       context: ./app
       dockerfile: Dockerfile_1
-    ports:
-      - 5000:5000
+    # ports:
+    #   - 5000:5000
     volumes:
-      - ./app/ConvertedVideos:/app/ConvertedVideos
+      - ./app/done:/app/done
       - ./app/OriginalVideos:/app/OriginalVideos
     env_file:
       - ./app/.env
-
   celery:
     build:
       context: ./app
       dockerfile: Dockerfile_2
     volumes:
-      - ./app/ConvertedVideos:/app/ConvertedVideos
+      - ./app/done:/app/done
       - ./app/OriginalVideos:/app/OriginalVideos
     env_file:
       - ./app/.env
+  nginx:
+    image: nginx
+    volumes:
+      - ./nginx/templates/nginx.conf.template:/etc/nginx/templates/nginx.conf.template
+      - ./nginx/templates/conf.d/:/etc/nginx/templates/conf.d/
+      - ./certs/:/etc/nginx/certs/
+      - ./logs/:/etc/nginx/logs/
+      - ./app/done/:/done/
+    ports:
+      - 443:443
+    env_file:
+      - ./app/.env
+    environment:
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
