@@ -2,7 +2,9 @@ from fileinput import filename
 import re
 import os
 import db_connections
-from urllib.parse import urljoin
+import jwt
+from functools import wraps
+from flask import request
 
 def RawVideoNameCheck(RawVideoName):
     RegExExtention= r'^[\w]+\.[\w]+$'
@@ -47,3 +49,22 @@ def complete_url(base_url, *objects):
     complete_url = base_url + path
     return complete_url
 
+secret_key=os.getenv('JWT_SECRET_KEY')
+def jwt_required_admin(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        auth_param = request.headers.get('Authorization')
+        if not auth_param:
+            return "Unauthorized", 401
+        try:
+            decoded = jwt.decode(auth_param, secret_key, algorithms=["HS256"]) # type: ignore
+        except jwt.ExpiredSignatureError:
+            return "Unauthorized", 401
+        except jwt.InvalidTokenError:
+            return "Unauthorized", 401
+        if decoded['role'] not in (1,2,3,8):
+            return "Unauthorized", 401
+
+        kwargs['jwt_payload'] = decoded
+        return func(*args, **kwargs)
+    return wrapper

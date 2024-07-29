@@ -5,33 +5,11 @@ from dotenv import load_dotenv
 import db_connections
 import Conversion
 import functions
-import jwt
 from werkzeug.utils import secure_filename
 from pathlib import Path
-from functools import wraps
 
 app = Flask(__name__)
 load_dotenv()
-
-secret_key=os.getenv('JWT_SECRET_KEY')
-def jwt_required_admin(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        auth_param = request.headers.get('Authorization')
-        if not auth_param:
-            return "Unauthorized", 401
-        try:
-            decoded = jwt.decode(auth_param, secret_key, algorithms=["HS256"]) # type: ignore
-        except jwt.ExpiredSignatureError:
-            return "Unauthorized", 401
-        except jwt.InvalidTokenError:
-            return "Unauthorized", 401
-        if decoded['role'] not in (1,2,3,8):
-            return "Unauthorized", 401
-
-        kwargs['jwt_payload'] = decoded
-        return func(*args, **kwargs)
-    return wrapper
 
 ConvertedVideos_path = str(os.getenv('CONVERTED_VIDEOS_PATH'))
 OriginalVideos_path= str(os.getenv('ORIGINAL_VIDEOS_PATH'))
@@ -39,7 +17,7 @@ VideoPkField = str(os.getenv("DB_VIDEOPK_FIELD"))
 base_url = f"{os.getenv('PROTOCOL')}://{os.getenv('HOST')}"
 
 @app.get('/api/getVideos')
-@jwt_required_admin
+@functions.jwt_required_admin
 def video_list(jwt_payload):
     VideoData= db_connections.mssql_select_video_star()
     print(base_url)
@@ -50,7 +28,7 @@ def video_list(jwt_payload):
     return VideoData, 200
 
 @app.post('/api/startVideoConversion') 
-@jwt_required_admin
+@functions.jwt_required_admin
 def video_insert(jwt_payload):
     RawVideoName=request.json['VideoName'] 
     VideoFullName=functions.RawVideoNameCheck(RawVideoName)
@@ -72,7 +50,7 @@ def video_insert(jwt_payload):
         return 'Video file missing', 404
 
 @app.post('/api/uploadVideo')
-@jwt_required_admin
+@functions.jwt_required_admin
 def video_upload(jwt_payload):
     file = request.files["file"]
     file_uuid = request.form["dzuuid"]
@@ -98,7 +76,7 @@ def video_upload(jwt_payload):
     return "Chunk upload successful.", 200    
     
 @app.get('/api/getVideoProgress')
-@jwt_required_admin
+@functions.jwt_required_admin
 def video_progress(jwt_payload):
     ConversionID=request.json['ConversionID']
     Quality=request.json['Quality']
