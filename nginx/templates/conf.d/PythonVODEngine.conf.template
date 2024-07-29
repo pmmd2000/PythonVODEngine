@@ -21,13 +21,26 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
         }
         location /api/ {
             access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
-            add_header 'Access-Control-Expose-Headers' 'Content-Length';
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
                 add_header 'Access-Control-Max-Age' 1728000;
-                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Type' 'text/plain; charset=utf-8';
                 add_header 'Content-Length' 0;
                 return 204;
+            }
+            if ($request_method = 'POST') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+                add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+            }
+            if ($request_method = 'GET') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+                add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
             }
             proxy_cache off;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -37,13 +50,26 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
         }
         location ~ /${CONVERTED_VIDEOS_PATH}/.+\.(m3u8|key)$ {
             access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
-            add_header 'Access-Control-Expose-Headers' 'Content-Length';
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
                 add_header 'Access-Control-Max-Age' 1728000;
-                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Type' 'text/plain; charset=utf-8';
                 add_header 'Content-Length' 0;
                 return 204;
+            }
+            if ($request_method = 'POST') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+                add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+            }
+            if ($request_method = 'GET') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+                add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
             }
             proxy_cache off;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -52,14 +78,26 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
             proxy_read_timeout 900;
         }
         location /${CONVERTED_VIDEOS_PATH}/ {
-            add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
-            add_header 'Access-Control-Expose-Headers' 'Content-Length';
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
                 add_header 'Access-Control-Max-Age' 1728000;
-                add_header 'Content-Type' 'text/plain charset=UTF-8';
+                add_header 'Content-Type' 'text/plain; charset=utf-8';
                 add_header 'Content-Length' 0;
                 return 204;
+            }
+            if ($request_method = 'POST') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+                add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+            }
+            if ($request_method = 'GET') {
+                add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}' always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+                add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
             }
             alias /${CONVERTED_VIDEOS_PATH}/;
             types {

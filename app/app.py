@@ -6,14 +6,11 @@ import db_connections
 import Conversion
 import functions
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
-from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from pathlib import Path
 
 app = Flask(__name__)
 load_dotenv()
-
-CORS(app, resources={r"/*": {"origins": os.getenv('CORS_ORIGIN_DOMAIN')}}, supports_credentials=True)
 
 ConvertedVideos_path = str(os.getenv('CONVERTED_VIDEOS_PATH'))
 OriginalVideos_path= str(os.getenv('ORIGINAL_VIDEOS_PATH'))
@@ -88,7 +85,3 @@ def video_progress():
     Quality=request.json['Quality']
     Progress=db_connections.redis_check_keyvalue(ConversionID,Quality)
     return Progress
-    
-
-if __name__ == '__main__':
-    app.run(debug=True, host='31.25.90.236', port=5001)

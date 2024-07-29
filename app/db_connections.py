@@ -28,7 +28,10 @@ mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConver
 mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
 
 def redis_check_keyvalue(ConversionID,Quality):
-    return r.get(f"{ConversionID}:{Quality}")
+    progress=r.get(f"{ConversionID}:{Quality}")
+    if progress==None:
+        progress='0'
+    return progress
 
 def mssql_select_video_star():
     cursor = mssql_connection.cursor(as_dict=True)

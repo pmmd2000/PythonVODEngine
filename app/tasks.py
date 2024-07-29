@@ -137,7 +137,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     max_muxing_queue_size=9999, 
                     preset='veryfast', 
                     start_number=0, 
-                    hls_time=4, 
+                    hls_time=10,
                     hls_list_size=0,
                     hls_segment_filename=FFmpegSegment_Name,
                     hls_key_info_file=EncKeyInfo_File,
