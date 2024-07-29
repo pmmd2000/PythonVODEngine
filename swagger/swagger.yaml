@@ -8,13 +8,13 @@ basePath: /api
 schemes:
   - https
 securityDefinitions:
-  Bearer:
+  ApiKeyAuth:
     type: apiKey
     name: Authorization
     in: header
-    description: JWT token to authorize requests. Format should be 'Bearer {token}'
+    description: JWT token to authorize requests. Format should be '{token}'
 security:
-  - Bearer: []
+  - ApiKeyAuth: []
 tags:
   - name: "Conversion Operations"
     description: "Operations related to video upload and conversion"
