@@ -7,6 +7,7 @@ services:
     #   - 5000:5000
     volumes:
       - ./app/done:/app/done
+      - ./app/done_symlink/:/app/done_symlink/
       - ./app/OriginalVideos:/app/OriginalVideos
     env_file:
       - ./app/.env
@@ -16,6 +17,7 @@ services:
       dockerfile: Dockerfile_2
     volumes:
       - ./app/done:/app/done
+      - ./app/done_symlink/:/app/done_symlink/
       - ./app/OriginalVideos:/app/OriginalVideos
     env_file:
       - ./app/.env
@@ -26,7 +28,8 @@ services:
       - ./nginx/templates/conf.d/:/etc/nginx/templates/conf.d/
       - ./certs/:/etc/nginx/certs/
       - ./logs/:/etc/nginx/logs/
-      - ./app/done/:/done/
+      - ./app/done/:/app/done/
+      - ./app/done_symlink/:/app/done_symlink/
     ports:
       - 443:443
     env_file:

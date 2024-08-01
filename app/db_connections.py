@@ -77,12 +77,20 @@ def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool):
     cursor.execute(query, (int(ConversionState), ConversionID))
     mssql_connection.commit()
     cursor.close()   
-def mssql_insert_chunks(VideoID,VideoName,ConversionID):
+# duplicate function
+def mssql_insert_chunks(VideoName,ConversionID):
+    ConvertedVideos_path = str(os.getenv('CONVERTED_VIDEOS_PATH'))
+    Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
+    OutputDir = os.path.join(ConvertedVideos_path, VideoName)
+    SymlinkDir = os.path.join(Symlink_path,VideoName)
     cursor = mssql_connection.cursor(as_dict=True)
     for file in ('enc.key', 'enc.keyinfo', f'{VideoName}.m3u8'):
         ChunkName,ChunkExtension=os.path.splitext(file)
         ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()
-        r.hset(f'{VideoID}:{ConversionID}:{VideoName}',file,ChunkHash)
+        file_absolute_path=os.path.join('/app',OutputDir,file)
+        file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
+        r.hset(f'{ConversionID}',file,ChunkHash+ChunkExtension)
         cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
+        os.symlink(file_absolute_path,file_symlink_absolute_path)
     mssql_connection.commit()
     cursor.close()

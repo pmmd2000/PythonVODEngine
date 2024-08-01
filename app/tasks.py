@@ -28,6 +28,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         ConversionID=VideoData['FldPkConversion']
         Extension= VideoData['FldExtension']
         VideoID = VideoData['FldPkVideo']
+        Symlink_path = os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
         
         def CurrentDatetime():
             return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -58,15 +59,20 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 cursor.close()
             else:
                 raise TypeError("Arguments not valid")
+        # duplicate function
         def mssql_insert_chunks(VideoID,ConversionID,Quality,VideoName):
             OutputDir = os.path.join(ConvertedVideos_path, VideoName)
+            SymlinkDir = os.path.join(Symlink_path,VideoName)
             cursor = mssql_connection.cursor(as_dict=True)
             for file in os.listdir(OutputDir):
                 if file.startswith(str(Quality)):
                     ChunkName,ChunkExtension=os.path.splitext(file)
                     ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()
-                    r.hset(f'{VideoID}:{ConversionID}:{VideoName}',file,ChunkHash)
+                    file_absolute_path=os.path.join('/app',OutputDir,file)
+                    file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
+                    r.hset(f'{ConversionID}',file,ChunkHash+ChunkExtension)
                     cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
+                    os.symlink(file_absolute_path,file_symlink_absolute_path)
             mssql_connection.commit()
             cursor.close()
         def watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path):

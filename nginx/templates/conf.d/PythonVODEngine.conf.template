@@ -2,6 +2,7 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
     server {
         access_log off;
         listen 443 ssl;
+        http2 on;
         server_name ${HOST} www.${HOST};
         ssl_certificate /etc/nginx/certs/${SSL_CRT};
         ssl_certificate_key /etc/nginx/certs/${SSL_KEY};
@@ -10,9 +11,9 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
         ssl_session_timeout 10m;
         ssl_ciphers HIGH:!aNULL:!MD5;
         ssl_prefer_server_ciphers on;
-        if ($http_referer !~* (${HOST}) ) {
-            return 403;
-        }
+        # if ($http_referer !~* (${CORS_ORIGIN_DOMAIN}) ) {
+        #     return 403;
+        # }
         if ($http_user_agent ~* (curl|wget|vlc) ) {
             return 403;
         }
@@ -47,6 +48,7 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
             proxy_set_header X-Real-IP $remote_addr;
             proxy_pass http://gunicorn:5000;
             proxy_read_timeout 900;
+            error_page 403 /403.html;
         }
         location ~ /${CONVERTED_VIDEOS_PATH}/.+\.(m3u8|key)$ {
             access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
@@ -99,10 +101,15 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
                 add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
                 add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
             }
-            alias /${CONVERTED_VIDEOS_PATH}/;
+            alias ${ABSOLUTE_CONVERTED_VIDEOS_SYMLINK_PATH}/;
             types {
                 video/mp2t ts;
                 application/vnd.apple.mpegurl m3u8;
             }
+            
+        }
+        location = /403.html {
+            internal;
+            root /usr/share/nginx/html;
         }
     }

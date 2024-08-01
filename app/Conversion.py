@@ -3,11 +3,13 @@ from app import db_connections
 from tasks import process_video_task
 import ffmpeg
 
-def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
+def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Symlink_path):
     
     # Create converted video directory
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
+    Symlink_Video_path=os.path.join(Symlink_path,VideoName)
     os.makedirs(ConvertedVideo_path)
+    os.makedirs(Symlink_Video_path)
     if not os.path.exists(ConvertedVideo_path):
         raise Exception("Dir creation failed")
     
@@ -21,7 +23,7 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData):
         f.write(keyinfo)
     ConversionID=VideoData['FldPkConversion']
     VideoID=VideoData['FldFkVideo']
-    db_connections.mssql_insert_chunks(VideoID,VideoName,ConversionID)
+    db_connections.mssql_insert_chunks(VideoName,ConversionID)
     # FFmpeg Conversion:
     for Quality in [480,1080,720]:
         if Quality==480:

@@ -12,6 +12,7 @@ app = Flask(__name__)
 load_dotenv()
 
 ConvertedVideos_path = str(os.getenv('CONVERTED_VIDEOS_PATH'))
+Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
 OriginalVideos_path= str(os.getenv('ORIGINAL_VIDEOS_PATH'))
 VideoPkField = str(os.getenv("DB_VIDEOPK_FIELD"))
 base_url = f"{os.getenv('PROTOCOL')}://{os.getenv('HOST')}"
@@ -40,7 +41,7 @@ def video_insert(jwt_payload):
     if type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path) and os.path.exists(OriginalVideo_File):
         Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
         VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
-        Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData)
+        Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Symlink_path)
         return {'VideoID':VideoData['FldPkVideo'],'ConversionID':VideoData['FldPkConversion']},200
     elif os.path.exists(ConvertedVideo_path):
         return "Video already present", 406 
