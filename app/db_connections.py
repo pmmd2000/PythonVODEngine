@@ -86,7 +86,7 @@ def mssql_insert_chunks(VideoName,ConversionID):
     cursor = mssql_connection.cursor(as_dict=True)
     for file in ('enc.key', 'enc.keyinfo', f'{VideoName}.m3u8'):
         ChunkName,ChunkExtension=os.path.splitext(file)
-        ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()
+        ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
         file_absolute_path=os.path.join('/app',OutputDir,file)
         file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
         r.hset(f'{ConversionID}',file,ChunkHash+ChunkExtension)

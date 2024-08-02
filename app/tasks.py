@@ -67,7 +67,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             for file in os.listdir(OutputDir):
                 if file.startswith(str(Quality)):
                     ChunkName,ChunkExtension=os.path.splitext(file)
-                    ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()
+                    ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
                     file_absolute_path=os.path.join('/app',OutputDir,file)
                     file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
                     r.hset(f'{ConversionID}',file,ChunkHash+ChunkExtension)
