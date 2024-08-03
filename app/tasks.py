@@ -39,13 +39,13 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             query = mssql_query_update_video.format("FldConvertIsFinished")
             cursor.execute(query, (int(ConversionState), ConversionID))
             mssql_connection.commit()
-            cursor.close()        
-        def CheckConversionEndRedis(VideoID,ConversionID,VideoName):
+            cursor.close()    
+        def CheckConversionEndRedis(ConversionID):
             if all(redis_check_keyvalue(f"{ConversionID}:{res}") == '100' for res in [480, 720, 1080]):
                 mssql_update_video_conversion_finished(ConversionID,True)
             else:
                 pass
-        def redis_update_video_quality(VideoID,ConversionID, VideoName, Quality: int, QualityPercentile:float):
+        def redis_update_video_quality(ConversionID, Quality: int, QualityPercentile:float):
             if Quality in (480, 720, 1080):
                 r.set(f"{ConversionID}:{Quality}",str(QualityPercentile),ex=86400)
             else:
@@ -60,7 +60,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             else:
                 raise TypeError("Arguments not valid")
         # duplicate function
-        def mssql_insert_chunks(VideoID,ConversionID,Quality,VideoName):
+        def mssql_insert_chunks(ConversionID,Quality,VideoName):
             OutputDir = os.path.join(ConvertedVideos_path, VideoName)
             SymlinkDir = os.path.join(Symlink_path,VideoName)
             cursor = mssql_connection.cursor(as_dict=True)
@@ -68,13 +68,22 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 if file.startswith(str(Quality)):
                     ChunkName,ChunkExtension=os.path.splitext(file)
                     ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
-                    file_absolute_path=os.path.join('/app',OutputDir,file)
-                    file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
-                    r.hset(f'{ConversionID}',file,ChunkHash+ChunkExtension)
+                    r.hset(ConversionID,file,ChunkHash+ChunkExtension)
                     cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
-                    os.symlink(file_absolute_path,file_symlink_absolute_path)
             mssql_connection.commit()
             cursor.close()
+            for file in os.listdir(OutputDir):
+                if file.startswith(str(Quality)):
+                    ChunkName,ChunkExtension=os.path.splitext(file)
+                    ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
+                    file_absolute_path=os.path.join('/app',OutputDir,file)
+                    file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
+                    if file.endswith('.m3u8'):
+                        functions.replace_m3u8_content(ConversionID,file_absolute_path,file_symlink_absolute_path)
+                    else:
+                        os.symlink(file_absolute_path,file_symlink_absolute_path)
+                    
+                    
         def watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path):
             EncKey=VideoData['FldEncKey']
             EncKeyIV=VideoData['FldEncKeyIV']
@@ -186,15 +195,17 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                         elapsed_time = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
                         percentage = (elapsed_time / total_duration) * 100
                         print(f"Elapsed time: {elapsed_time} seconds, Percentage: {percentage:.2f}%")  # Debug output
-                        redis_update_video_quality(VideoID,ConversionID,VideoName,Quality,round(percentage,2))
+                        redis_update_video_quality(ConversionID,Quality,round(percentage,2))
 
         ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution)
-        redis_update_video_quality(VideoID,ConversionID, VideoName, Quality, 100)
-        CheckConversionEndRedis(VideoID,ConversionID, VideoName)
+        redis_update_video_quality(ConversionID, Quality, 100)
+        CheckConversionEndRedis(ConversionID)
         mssql_update_video_quality(ConversionID,Quality,'End')
         watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path)
-        mssql_insert_chunks(VideoID,ConversionID,Quality,VideoName)
+        mssql_insert_chunks(ConversionID,Quality,VideoName)
         functions.WriteMasterM3U8(ConversionID,VideoName,ConvertedVideos_path)
+        
+        
         
 
         return f"{ConversionID}:{Quality}"

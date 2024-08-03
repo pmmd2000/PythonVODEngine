@@ -22,7 +22,6 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Sy
     with open(os.path.join(ConvertedVideo_path,'enc.keyinfo'), 'w') as f:
         f.write(keyinfo)
     ConversionID=VideoData['FldPkConversion']
-    VideoID=VideoData['FldFkVideo']
     db_connections.mssql_insert_chunks(VideoName,ConversionID)
     # FFmpeg Conversion:
     for Quality in [480,1080,720]:
