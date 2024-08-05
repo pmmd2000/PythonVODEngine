@@ -89,10 +89,14 @@ def mssql_insert_chunks(VideoName,ConversionID):
         ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
         file_absolute_path=os.path.join('/app',OutputDir,file)
         file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
+        file_symlink_absolute_path_nonhash=os.path.join('/app',SymlinkDir,f'{VideoName}.m3u8')
         r.hset(f'{ConversionID}',file,ChunkHash+ChunkExtension)
         cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
         if not file==f'{VideoName}.m3u8':
             os.symlink(file_absolute_path,file_symlink_absolute_path)
+        else:
+            os.symlink(file_absolute_path,file_symlink_absolute_path_nonhash)
+            
         
     mssql_connection.commit()
     cursor.close()

@@ -5,7 +5,7 @@ import jwt
 from functools import wraps
 from flask import request
 import redis
-import functions
+# import functions
 from hashlib import sha256
 
 jwt_secret_key=os.getenv('JWT_SECRET_KEY')
@@ -39,10 +39,6 @@ def WriteMasterM3U8(ConversionID,VideoName,ConvertedVideos_path):
     output_file=os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8')
     with open(output_file, 'w') as f:
         f.write(MasterM3U8)
-    SymlinkDir = os.path.join(Symlink_path,VideoName)
-    file_absolute_path=os.path.join('/app',output_file)
-    file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{VideoName}.m3u8')
-    functions.replace_m3u8_content(ConversionID,file_absolute_path,file_symlink_absolute_path)
     return MasterM3U8
 
 # def scp(VideoID,ConversionID,VideoName,ConvertedVideos_path,destination):
@@ -63,6 +59,25 @@ def complete_url(base_url, *objects):
     return complete_url
 
 def jwt_required_admin(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        auth_param = request.headers.get('Authorization')
+        if not auth_param:
+            return "Unauthorized", 401
+        try:
+            decoded = jwt.decode(auth_param, jwt_secret_key, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return "Unauthorized", 401
+        except jwt.InvalidTokenError:
+            return "Unauthorized", 401
+        if decoded['role'] not in (1,2,3,8):
+            return 'Forbidden!',403
+
+        kwargs['jwt_payload'] = decoded
+        return func(*args, **kwargs)
+    return wrapper
+
+def jwt_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         auth_param = request.headers.get('Authorization')

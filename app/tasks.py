@@ -64,26 +64,17 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             OutputDir = os.path.join(ConvertedVideos_path, VideoName)
             SymlinkDir = os.path.join(Symlink_path,VideoName)
             cursor = mssql_connection.cursor(as_dict=True)
-            for file in os.listdir(OutputDir):
-                if file.startswith(str(Quality)):
-                    ChunkName,ChunkExtension=os.path.splitext(file)
-                    ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
-                    r.hset(ConversionID,file,ChunkHash+ChunkExtension)
-                    cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
+            for file in (file for file in os.listdir(OutputDir) if file.startswith(str(Quality))):
+                ChunkName,ChunkExtension=os.path.splitext(file)
+                ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
+                r.hset(ConversionID,file,ChunkHash+ChunkExtension)
+                file_absolute_path=os.path.join('/app',OutputDir,file)
+                file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
+                cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
+                os.symlink(file_absolute_path,file_symlink_absolute_path)
             mssql_connection.commit()
             cursor.close()
-            for file in os.listdir(OutputDir):
-                if file.startswith(str(Quality)):
-                    ChunkName,ChunkExtension=os.path.splitext(file)
-                    ChunkHash=sha256((ChunkName+hash_salt).encode('utf-8')).hexdigest()[:16]
-                    file_absolute_path=os.path.join('/app',OutputDir,file)
-                    file_symlink_absolute_path=os.path.join('/app',SymlinkDir,f'{ChunkHash}{ChunkExtension}')
-                    if file.endswith('.m3u8'):
-                        functions.replace_m3u8_content(ConversionID,file_absolute_path,file_symlink_absolute_path)
-                    else:
-                        os.symlink(file_absolute_path,file_symlink_absolute_path)
-                    
-                    
+   
         def watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path):
             EncKey=VideoData['FldEncKey']
             EncKeyIV=VideoData['FldEncKeyIV']
@@ -204,9 +195,6 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path)
         mssql_insert_chunks(ConversionID,Quality,VideoName)
         functions.WriteMasterM3U8(ConversionID,VideoName,ConvertedVideos_path)
-        
-        
-        
 
         return f"{ConversionID}:{Quality}"
     except Exception as e:
