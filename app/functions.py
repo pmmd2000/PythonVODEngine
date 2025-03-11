@@ -7,7 +7,8 @@ from flask import request
 import redis
 # import functions
 from hashlib import sha256
-
+auth_api_secret=os.getenv('AUTH_API_SECRET')
+auth_api_host=os.getenv('AUTH_API_HOST')
 jwt_secret_key=os.getenv('JWT_SECRET_KEY')
 hash_salt=os.getenv('HASH_SALT')
 Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
@@ -70,7 +71,7 @@ def jwt_required_admin(func):
             return "Unauthorized", 401
         except jwt.InvalidTokenError:
             return "Unauthorized", 401
-        if decoded['role'] not in (1,2,3,8):
+        if decoded['role'] not in (1,3,8):
             return 'Forbidden!',403
 
         kwargs['jwt_payload'] = decoded
@@ -81,6 +82,7 @@ def jwt_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         auth_param = request.headers.get('Authorization')
+        video_dir = kwargs.get("video_dir")
         if not auth_param:
             return "Unauthorized", 401
         try:
@@ -89,31 +91,56 @@ def jwt_required(func):
             return "Unauthorized", 401
         except jwt.InvalidTokenError:
             return "Unauthorized", 401
-        if decoded['role'] not in (1,2,3,8):
-            return 'Forbidden!',403
 
+        userId = decoded.get("userId")
+        if not userId:
+            return "Unauthorized", 401
+        response = request.post(auth_api_host, json={
+            "userId": userId,
+            "secret": auth_api_secret,
+            "StreamName": video_dir})
+        if response.status_code != 200:
+            return "Gateway Timeout", 504
+
+        access_info = response.json().get("data")
+        if not access_info or access_info[0].get("access") != 1:
+            return "Unauthorized", 401
         kwargs['jwt_payload'] = decoded
         return func(*args, **kwargs)
     return wrapper
 
 # def create_symlinks(VideoName,ConvertedVideos_path):
-def replace_m3u8_content(ConversionID,input_file,output_file):
-    with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
+def replace_m3u8_content(ConversionID,input_file,token):
+    with open(input_file, 'r') as infile:
+        response=''
+        values=r.hgetall(ConversionID)
         for line in infile:
             if line.startswith('#'):
                 if line.startswith('#EXT-X-KEY'):
                     key='enc.key'
-                    value=r.hget(ConversionID,key)
+                    value=values.get(key)
                     if value:
-                        outfile.write(line.replace(key,value))
+                        response += line.replace(key , value) + '?auth=' + token + '\n'
                     else:
-                        outfile.write(line)
+                        response += line + '\n'
                 else:
-                    outfile.write(line)
+                    response += line + '\n'
             else:
                 key = line.strip()
-                value = r.hget(ConversionID,key)
+                file_number = int(key.split('_')[-1].split('.')[0])
+                if 101 <= file_number <= 132:
+                    tsname,extension = os.path.splitext(key)
+                    key = tsname + '_watermarked' + extension
+                value=values.get(key)
                 if value:
-                    outfile.write(value + '\n')
+                    response += value + '?auth=' + token + '\n'
                 else:
-                    outfile.write(line)
+                    response += line + '\n'
+    return response
+                    
+def get_real_ip():
+    if not request.headers.getlist("X-Forwarded-For"):
+        ip = request.remote_addr
+    else:
+        ip = request.headers.getlist("X-Forwarded-For")[0]
+    return ip

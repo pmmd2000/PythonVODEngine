@@ -1,6 +1,6 @@
 services:
   gunicorn:
-    build: 
+    build:
       context: ./app
       dockerfile: Dockerfile_1
     # ports:

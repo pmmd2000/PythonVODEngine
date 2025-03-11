@@ -15,7 +15,7 @@ http {
         listen 80 default_server;
         listen [::]:80 default_server;
         server_name _;
-
+        client_max_body_size 100M;
         return 301 https://$host$request_uri;
     }
     include /etc/nginx/conf.d/*.conf;

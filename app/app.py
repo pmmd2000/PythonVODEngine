@@ -51,8 +51,8 @@ def video_insert(jwt_payload):
         return 'Video file missing', 404
 
 @app.post('/api/uploadVideo')
-@functions.jwt_required_admin
-def video_upload(jwt_payload):
+#@functions.jwt_required_admin
+def video_upload():
     file = request.files["file"]
     file_uuid = request.form["dzuuid"]
     # Generate a unique filename to avoid overwriting using 8 chars of uuid before filename.
@@ -83,3 +83,29 @@ def video_progress(jwt_payload):
     Quality=request.json['Quality']
     Progress=db_connections.redis_check_keyvalue(ConversionID,Quality)
     return Progress
+
+@app.route("/done/<url_ConvertedVideo_path>/<url_filename>")
+@functions.jwt_required
+def serve_file(url_ConvertedVideo_path, url_filename, auth_param):
+    ConvertedVideo_path=os.path.basename(url_ConvertedVideo_path)
+    filename=os.path.basename(url_filename)
+    filepath = os.path.join(ConvertedVideos_path, ConvertedVideo_path, filename)
+    if os.path.islink(filepath):
+        filepath = os.path.realpath(filepath)
+
+    if not os.path.exists(filepath):
+        return "404 Not Found", 404
+    
+    if filename.endswith(".m3u8"):
+        with open(filepath, "r") as file:
+            content = file.read()
+            ip = functions.get_real_ip()
+            octets = ip.split(".")  # type: ignore
+            binary_octets = [f"{int(octet):08b}" for octet in octets]
+            bin_ip = "".join(binary_octets)
+            
+            for counter, bit in enumerate(bin_ip, start=1):
+                if bit == '1':
+                    if len(str(counter)) == 1:
+                        counter = f"0{counter}"
+                    content = content.replace(f"_01{counter}.ts", f"_01{counter}_watermarked.ts")

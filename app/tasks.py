@@ -74,7 +74,6 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 os.symlink(file_absolute_path,file_symlink_absolute_path)
             mssql_connection.commit()
             cursor.close()
-   
         def watermark_video(ConvertedVideos_path,VideoName,Quality,VideoData,watermark_path):
             EncKey=VideoData['FldEncKey']
             EncKeyIV=VideoData['FldEncKeyIV']
