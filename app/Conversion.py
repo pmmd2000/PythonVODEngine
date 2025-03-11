@@ -18,7 +18,8 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Sy
     EncKeyIVHex = VideoData['FldEncKeyIV']
     with open(os.path.join(ConvertedVideo_path,'enc.key'), 'wb') as f:
         f.write(EncKeyBytes)
-    keyinfo=f"enc.key\n{ConvertedVideo_path}/enc.key\n{EncKeyIVHex}"
+        ##enc.keyinfo PATH CHANGE
+    keyinfo=f"enc.key\n/celery/done/{VideoName}/enc.key\n{EncKeyIVHex}"
     with open(os.path.join(ConvertedVideo_path,'enc.keyinfo'), 'w') as f:
         f.write(keyinfo)
     ConversionID=VideoData['FldPkConversion']

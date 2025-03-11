@@ -131,24 +131,9 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             cursor.execute(query, (int(ConversionState), ConversionID))
             mssql_connection.commit()
             cursor.close()    
-        def CheckConversionEndRedisandCleanup(ConversionID):
+        def CheckConversionEndRedis(ConversionID):
             if all(redis_check_keyvalue(f"{ConversionID}:{res}") == '100' for res in [480, 720, 1080]):
                 mssql_update_video_conversion_finished(ConversionID,True)
-                if os.path.isfile(os.path.join(local_original_path,f"{VideoName}{Extension}")):
-                    os.remove(os.path.join(local_original_path,f"{VideoName}{Extension}"))
-                    logging.info(f"Original {VideoName}{Extension} file removed")
-                if os.path.exists(os.path.join(local_done_path,VideoName)):
-                    for filename in os.listdir(os.path.join(local_done_path,VideoName)):
-                        file_path=os.path.join(local_done_path,VideoName,filename)
-                        try:
-                            if os.path.isfile(file_path) or os.path.islink(file_path):
-                                os.unlink(file_path)
-                            elif os.path.isdir(file_path):
-                                shutil.rmtree(file_path)
-                        except Exception as e:
-                            print('Failed to delete %s. Reason: %s' % (file_path, e))
-                    os.rmdir(os.path.join(local_done_path,VideoName))
-                    logging.info(f"Converted {VideoName} directory removed")
             else:
                 pass
         def redis_update_video_quality(ConversionID, Quality: int, QualityPercentile:float):
@@ -166,6 +151,22 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             else:
                 raise TypeError("Arguments not valid")
         # duplicate function
+        def cleanup():
+            if os.path.isfile(os.path.join(local_original_path,f"{VideoName}{Extension}")):
+                os.remove(os.path.join(local_original_path,f"{VideoName}{Extension}"))
+                logging.info(f"Original {VideoName}{Extension} file removed")
+            if os.path.exists(os.path.join(local_done_path,VideoName)):
+                for filename in os.listdir(os.path.join(local_done_path,VideoName)):
+                    file_path=os.path.join(local_done_path,VideoName,filename)
+                    try:
+                        if os.path.isfile(file_path) or os.path.islink(file_path):
+                            os.unlink(file_path)
+                        elif os.path.isdir(file_path):
+                            shutil.rmtree(file_path)
+                    except Exception as e:
+                        print('Failed to delete %s. Reason: %s' % (file_path, e))
+                os.rmdir(os.path.join(local_done_path,VideoName))
+                logging.info(f"Converted {VideoName} directory removed")
         def mssql_insert_chunks(ConversionID,Quality,VideoName):
             OutputDir = os.path.join(local_done_path, VideoName)
             SymlinkDir = os.path.join(Symlink_path,VideoName)
@@ -301,8 +302,8 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         mssql_insert_chunks(ConversionID,Quality,VideoName)
         functions.WriteMasterM3U8(ConversionID,VideoName,local_done_path)
         fileTransfer('send',VideoName,Quality)
-        CheckConversionEndRedisandCleanup(ConversionID)
-
+        CheckConversionEndRedis(ConversionID)
+        # cleanup()
         return f"{ConversionID}:{Quality}"
     except Exception as e:
         self.update_state(

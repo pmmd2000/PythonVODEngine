@@ -51,30 +51,47 @@ def video_insert(jwt_payload):
         return 'Video file missing', 404
 
 @app.post('/api/uploadVideo')
-#@functions.jwt_required_admin
-def video_upload():
+@functions.jwt_required_admin
+def video_upload(jwt_payload):
+    if "file" not in request.files:
+        return "No file part", 400
+        
     file = request.files["file"]
-    file_uuid = request.form["dzuuid"]
-    # Generate a unique filename to avoid overwriting using 8 chars of uuid before filename.
-    filename = f"{file_uuid[:8]}_{secure_filename(file.filename)}"
-    save_path = Path("static", "img", filename)
-    current_chunk = int(request.form["dzchunkindex"])
+    file_uuid = request.form.get("dzuuid")
+    if not file_uuid:
+        return "Missing upload ID", 400
 
+    # Generate a unique filename to avoid overwriting
+    filename = f"{file_uuid[:8]}_{secure_filename(file.filename)}"
+    save_path = Path(OriginalVideos_path) / filename
+    
+    # Ensure upload directory exists
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    current_chunk = int(request.form["dzchunkindex"])
+    
     try:
         with open(save_path, "ab") as f:
             f.seek(int(request.form["dzchunkbyteoffset"]))
             f.write(file.stream.read())
-    except OSError:
-        return "Error saving file.", 500
+    except OSError as e:
+        return f"Error saving file: {str(e)}", 500
 
     total_chunks = int(request.form["dztotalchunkcount"])
 
     if current_chunk + 1 == total_chunks:
-        # This was the last chunk, the file should be complete and the size we expect
+        # Verify final file size
         if os.path.getsize(save_path) != int(request.form["dztotalfilesize"]):
-            return "Size mismatch.", 500
+            # Cleanup failed upload
+            os.unlink(save_path)
+            return "Size mismatch", 500
+            
+        # Optional: Verify file type
+        if not filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+            os.unlink(save_path)
+            return "Invalid file type", 400
 
-    return "Chunk upload successful.", 200    
+    return {"message": "Chunk upload successful", "filename": filename}, 200
     
 @app.get('/api/getVideoProgress')
 @functions.jwt_required_admin
