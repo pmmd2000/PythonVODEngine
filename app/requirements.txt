@@ -8,3 +8,4 @@ celery
 kombu
 ffmpeg-python
 Gunicorn
+paramiko

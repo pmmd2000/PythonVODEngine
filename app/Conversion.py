@@ -9,7 +9,7 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Sy
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
     Symlink_Video_path=os.path.join(Symlink_path,VideoName)
     os.makedirs(ConvertedVideo_path)
-    os.makedirs(Symlink_Video_path)
+    # os.makedirs(Symlink_Video_path)
     if not os.path.exists(ConvertedVideo_path):
         raise Exception("Dir creation failed")
     

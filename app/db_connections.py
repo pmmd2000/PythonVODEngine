@@ -92,10 +92,10 @@ def mssql_insert_chunks(VideoName,ConversionID):
         file_symlink_absolute_path_nonhash=os.path.join('/app',SymlinkDir,f'{VideoName}.m3u8')
         r.hset(f'{ConversionID}',file,ChunkHash+ChunkExtension)
         cursor.execute(mssql_query_insert_chunk,(ConversionID,ChunkName,ChunkHash,ChunkExtension))
-        if not file==f'{VideoName}.m3u8':
-            os.symlink(file_absolute_path,file_symlink_absolute_path)
-        else:
-            os.symlink(file_absolute_path,file_symlink_absolute_path_nonhash)
+        # if not file==f'{VideoName}.m3u8':
+        #     os.symlink(file_absolute_path,file_symlink_absolute_path)
+        # else:
+        #     os.symlink(file_absolute_path,file_symlink_absolute_path_nonhash)
             
         
     mssql_connection.commit()

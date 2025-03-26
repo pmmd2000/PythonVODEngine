@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile_1
     # ports:
     #   - 5000:5000
+    user: 1000:1000
     volumes:
       - ./app/done:/app/done
       - ./app/done_symlink/:/app/done_symlink/
@@ -15,10 +16,12 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile_2
+    user: 1000:1000
     volumes:
       - ./app/done:/app/done
       - ./app/done_symlink/:/app/done_symlink/
       - ./app/OriginalVideos:/app/OriginalVideos
+      - ./celery:/celery
     env_file:
       - ./app/.env
   nginx:
