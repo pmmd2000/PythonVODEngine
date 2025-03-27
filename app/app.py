@@ -31,24 +31,33 @@ def video_list(jwt_payload):
 @app.post('/api/startVideoConversion') 
 @functions.jwt_required_admin
 def video_insert(jwt_payload):
-    RawVideoName=request.json['VideoName'] 
-    VideoFullName=functions.RawVideoNameCheck(RawVideoName)
-    VideoName=VideoFullName['VideoName']
-    Extension=VideoFullName['Extension']
-    VideoData= db_connections.mssql_select_video(VideoName)
-    ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
-    OriginalVideo_File=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
-    if type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path) and os.path.exists(OriginalVideo_File):
-        Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
-        VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
-        Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Symlink_path)
-        return {'VideoID':VideoData['FldPkVideo'],'ConversionID':VideoData['FldPkConversion']},200
-    elif os.path.exists(ConvertedVideo_path):
-        return "Video already present", 406 
-    elif not type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path):
-        return 'Previously converted video missing', 406
-    elif type(VideoData)==NoneType and not os.path.exists(OriginalVideo_File):
-        return 'Video file missing', 404
+    RawVideoName = request.json['VideoName']
+    try:
+        VideoFullName = functions.RawVideoNameCheck(RawVideoName)
+        VideoName = VideoFullName['VideoName']
+        Extension = VideoFullName['Extension']
+        
+        # Validate extension
+        if not Extension.lower() in ['.mp4', '.avi', '.mov', '.mkv']:
+            return "Invalid file extension", 400
+
+        VideoData= db_connections.mssql_select_video(VideoName)
+        ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
+        OriginalVideo_File=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
+        if type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path) and os.path.exists(OriginalVideo_File):
+            Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
+            VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
+            Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Symlink_path)
+            return {'VideoID':VideoData['FldPkVideo'],'ConversionID':VideoData['FldPkConversion']},200
+        elif os.path.exists(ConvertedVideo_path):
+            return "Video already present", 406 
+        elif not type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_path):
+            return 'Previously converted video missing', 406
+        elif type(VideoData)==NoneType and not os.path.exists(OriginalVideo_File):
+            return 'Video file missing', 404
+
+    except Exception as e:
+        return f"Error processing video name: {str(e)}", 400
 
 @app.post('/api/uploadVideo')
 @functions.jwt_required_admin

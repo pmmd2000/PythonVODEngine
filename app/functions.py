@@ -16,15 +16,13 @@ Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
 r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
 
 def RawVideoNameCheck(RawVideoName):
-    RegExExtention= r'^[\w]+\.[\w]+$'
-    RegExNameOnly= r'^[\w]+$'
-    if re.match(RegExExtention, RawVideoName):
-        VideoName,Extension=os.path.splitext(RawVideoName)
-        return {'VideoName': VideoName, 'Extension': Extension}
-    elif re.match(RegExNameOnly,RawVideoName):
-        return {'VideoName': RawVideoName, 'Extension': '.mp4'}
-    else:
-        return "VideoName Invalid",400
+    # Extract name and extension
+    VideoName, Extension = os.path.splitext(RawVideoName)
+    # Return as dictionary instead of tuple
+    return {
+        'VideoName': VideoName,
+        'Extension': Extension
+    }
 
 def WriteMasterM3U8(ConversionID,VideoName,ConvertedVideos_path):
     MasterM3U8_1080=""
