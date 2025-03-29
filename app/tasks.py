@@ -25,6 +25,10 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
     local_done_path=os.getenv('LOCAL_DONE_PATH')
     local_original_path=os.getenv('LOCAL_ORIGINAL_PATH')
     
+    # Create required directories if they don't exist
+    os.makedirs(local_done_path, exist_ok=True)
+    os.makedirs(local_original_path, exist_ok=True)
+    
     try:
         
         mssql_connection = pymssql.connect(

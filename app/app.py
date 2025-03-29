@@ -34,6 +34,9 @@ def video_insert(jwt_payload):
     RawVideoName = request.json['VideoName']
     try:
         VideoFullName = functions.RawVideoNameCheck(RawVideoName)
+        if VideoFullName is None:
+            return "Invalid filename format. Only alphanumeric characters, underscores and hyphens are allowed.", 400
+            
         VideoName = VideoFullName['VideoName']
         Extension = VideoFullName['Extension']
         
@@ -70,8 +73,12 @@ def video_upload(jwt_payload):
     if not file_uuid:
         return "Missing upload ID", 400
 
-    # Generate a unique filename to avoid overwriting
-    filename = f"{file_uuid[:8]}_{secure_filename(file.filename)}"
+    # Validate filename using RawVideoNameCheck
+    filename = secure_filename(file.filename)
+    video_info = functions.RawVideoNameCheck(filename)
+    if video_info is None:
+        return "Invalid filename format. Only alphanumeric characters, underscores and hyphens are allowed.", 400
+    
     save_path = Path(OriginalVideos_path) / filename
     
     # Ensure upload directory exists

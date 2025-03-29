@@ -16,6 +16,11 @@ Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
 r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
 
 def RawVideoNameCheck(RawVideoName):
+    # Validate filename with regex
+    pattern = r'^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$'
+    if not re.match(pattern, RawVideoName):
+        return None
+        
     # Extract name and extension
     VideoName, Extension = os.path.splitext(RawVideoName)
     # Return as dictionary instead of tuple
