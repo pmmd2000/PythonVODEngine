@@ -259,7 +259,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     hls_key_info_file=EncKeyInfo_File,
                     hls_allow_cache=1,
                     hls_enc=1,
-                    hls_enc_key=EncKey_File,
+                    # hls_enc_key=EncKey_File,
                     hls_playlist_type='vod',
                 )
                 .global_args('-progress', '-', '-loglevel', 'verbose')
@@ -275,6 +275,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
 
             while True:
                 line = process.stderr.readline()
+                # print(line)  # Debug output
                 if line == '' and process.poll() is not None:
                     break
                 if line:

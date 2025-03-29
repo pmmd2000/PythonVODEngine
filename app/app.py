@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import db_connections
 import Conversion
 import functions
-from werkzeug.utils import secure_filename
+# from werkzeug.utils import secure_filename
 from pathlib import Path
 
 app = Flask(__name__)
@@ -72,12 +72,13 @@ def video_upload(jwt_payload):
     file_uuid = request.form.get("dzuuid")
     if not file_uuid:
         return "Missing upload ID", 400
-
+    filename=file.filename
     # Validate filename using RawVideoNameCheck
-    filename = secure_filename(file.filename)
     video_info = functions.RawVideoNameCheck(filename)
     if video_info is None:
         return "Invalid filename format. Only alphanumeric characters, underscores and hyphens are allowed.", 400
+    # filename = secure_filename(file.filename)
+
     
     save_path = Path(OriginalVideos_path) / filename
     

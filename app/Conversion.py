@@ -8,6 +8,8 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Sy
     # Create converted video directory
     ConvertedVideo_path=os.path.join(ConvertedVideos_path,VideoName)
     Symlink_Video_path=os.path.join(Symlink_path,VideoName)
+    local_done_path=os.getenv('LOCAL_DONE_PATH')
+    EncKey_File = os.path.join(local_done_path, VideoName, 'enc.key')
     os.makedirs(ConvertedVideo_path)
     # os.makedirs(Symlink_Video_path)
     if not os.path.exists(ConvertedVideo_path):
@@ -19,7 +21,7 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Sy
     with open(os.path.join(ConvertedVideo_path,'enc.key'), 'wb') as f:
         f.write(EncKeyBytes)
         ##enc.keyinfo PATH CHANGE
-    keyinfo=f"enc.key\n/celery/done/{VideoName}/enc.key\n{EncKeyIVHex}"
+    keyinfo=f"enc.key\n{EncKey_File}\n{EncKeyIVHex}"
     with open(os.path.join(ConvertedVideo_path,'enc.keyinfo'), 'w') as f:
         f.write(keyinfo)
     ConversionID=VideoData['FldPkConversion']
