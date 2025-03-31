@@ -34,11 +34,11 @@ def WriteMasterM3U8(ConversionID,VideoName,ConvertedVideos_path):
     MasterM3U8_720=""
     MasterM3U8_480=""
     if db_connections.redis_check_keyvalue(ConversionID,1080) == '100':
-        MasterM3U8_1080=f'#EXT-X-STREAM-INF:BANDWIDTH=1900000,AVERAGE-BANDWIDTH=1400000,RESOLUTION=1920x1080,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n1080_{VideoName}.m3u8\n'
+        MasterM3U8_1080=f'#EXT-X-STREAM-INF:BANDWIDTH=1900000,AVERAGE-BANDWIDTH=1400000,RESOLUTION=1920x1080,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n1080_{VideoName}_1.m3u8\n'
     if db_connections.redis_check_keyvalue(ConversionID,720) == '100':
-        MasterM3U8_720=f'#EXT-X-STREAM-INF:BANDWIDTH=700000,AVERAGE-BANDWIDTH=520000,RESOLUTION=1280x720,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n720_{VideoName}.m3u8\n'
+        MasterM3U8_720=f'#EXT-X-STREAM-INF:BANDWIDTH=700000,AVERAGE-BANDWIDTH=520000,RESOLUTION=1280x720,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n720_{VideoName}_1.m3u8\n'
     if db_connections.redis_check_keyvalue(ConversionID,480) == '100':
-        MasterM3U8_480=f'#EXT-X-STREAM-INF:BANDWIDTH=450000,AVERAGE-BANDWIDTH=400000,RESOLUTION=854x480,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n480_{VideoName}.m3u8\n'
+        MasterM3U8_480=f'#EXT-X-STREAM-INF:BANDWIDTH=450000,AVERAGE-BANDWIDTH=400000,RESOLUTION=854x480,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n480_{VideoName}_1.m3u8\n'
     MasterM3U8=f'#EXTM3U\n{MasterM3U8_1080}{MasterM3U8_720}{MasterM3U8_480}'
     output_file=os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8')
     with open(output_file, 'w') as f:
@@ -114,13 +114,15 @@ def jwt_required(func):
 
 # def create_symlinks(VideoName,ConvertedVideos_path):
 def replace_m3u8_content(ConversionID,input_file,token):
+    enc_key_filename=os.getenv('ENC_KEY_NAME')
+    enc_keyinfo_filename=os.getenv('ENC_KEYINFO_NAME')
     with open(input_file, 'r') as infile:
         response=''
         values=r.hgetall(ConversionID)
         for line in infile:
             if line.startswith('#'):
                 if line.startswith('#EXT-X-KEY'):
-                    key='enc.key'
+                    key=enc_key_filename
                     value=values.get(key)
                     if value:
                         response += line.replace(key , value) + '?auth=' + token + '\n'

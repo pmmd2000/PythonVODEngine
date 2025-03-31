@@ -24,6 +24,8 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
     remote_done_path=os.getenv('REMOTE_DONE_PATH')
     local_done_path=os.getenv('LOCAL_DONE_PATH')
     local_original_path=os.getenv('LOCAL_ORIGINAL_PATH')
+    enc_key_filename=os.getenv('ENC_KEY_NAME')
+    enc_keyinfo_filename=os.getenv('ENC_KEYINFO_NAME')
     
     # Create required directories if they don't exist
     os.makedirs(local_done_path, exist_ok=True)
@@ -36,6 +38,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASS"),
         database=os.getenv("DB_NAME","None")
+
         )
         r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
         mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
@@ -79,13 +82,13 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     local_dir = os.path.join(local_done_path, VideoName)
                     remote_dir = os.path.join(remote_done_path, VideoName)
                     files_to_transfer = [
-                        f"{Quality}_{VideoName}.m3u8",
+                        f"{Quality}_{VideoName}_1.m3u8",
                         f"{VideoName}.m3u8",
-                        "enc.key",
-                        "enc.keyinfo",
-                        f"{Quality}_{VideoName}.png"
+                        enc_key_filename,
+                        enc_keyinfo_filename,
+                        f"{Quality}_{VideoName}_1.png"
                     ]
-                    ts_pattern = f"{Quality}_{VideoName}_*.ts"
+                    ts_pattern = f"{Quality}_{VideoName}_1*.ts"
                     for file in os.listdir(local_dir):
                         if fnmatch.fnmatch(file, ts_pattern):
                             files_to_transfer.append(file)
@@ -101,7 +104,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     # Create local directory if it doesn't exist
                     os.makedirs(os.path.join(local_done_path, VideoName), exist_ok=True)
 
-                    files_to_receive = ["enc.key", "enc.keyinfo"]
+                    files_to_receive = [enc_key_filename, enc_keyinfo_filename]
                     remote_dir = os.path.join(remote_done_path, VideoName)
                     local_dir = os.path.join(local_done_path, VideoName)
 
@@ -190,11 +193,11 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             EncKeyIV=VideoData['FldEncKeyIV']
             print('entered the function')
             for index in range(101,133):
-                encrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_0{index}.ts')
+                encrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}.ts')
                 if os.path.exists(encrypted_input_file):
-                    decrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_0{index}_b.ts')
-                    decrypted_watermarked_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_0{index}_e.ts')
-                    encrypted_watermarked_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_0{index}_watermarked.ts')
+                    decrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}_b.ts')
+                    decrypted_watermarked_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}_e.ts')
+                    encrypted_watermarked_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_l{index}.ts')
                     watermark_file=os.path.join(watermark_path,f'watermark_{Quality}.png')
                     openssl_decrypt_command = [
                     "openssl",
@@ -231,11 +234,11 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     pass
         def ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution):
             OriginalVideo_Name = os.path.join(local_original_path, f'{VideoName}{Extension}')
-            ConvertedVideo_m3u8 = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}.m3u8')
-            Thumbnail_Path=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}.png')
-            FFmpegSegment_Name = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_%04d.ts')
-            EncKeyInfo_File = os.path.join(local_done_path, VideoName, 'enc.keyinfo')
-            EncKey_File = os.path.join(local_done_path, VideoName, 'enc.key')
+            ConvertedVideo_m3u8 = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1.m3u8')
+            Thumbnail_Path=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1.png')
+            FFmpegSegment_Name = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1%d.ts')
+            EncKeyInfo_File = os.path.join(local_done_path, VideoName, enc_keyinfo_filename)
+            EncKey_File = os.path.join(local_done_path, VideoName, enc_key_filename)
             (
                 ffmpeg
                 .input(OriginalVideo_Name, ss=0)
@@ -258,7 +261,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     hls_segment_filename=FFmpegSegment_Name,
                     hls_key_info_file=EncKeyInfo_File,
                     hls_allow_cache=1,
-                    hls_enc=1,
+                    # hls_enc=1,
                     # hls_enc_key=EncKey_File,
                     hls_playlist_type='vod',
                 )
