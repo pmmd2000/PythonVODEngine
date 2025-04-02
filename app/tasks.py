@@ -13,6 +13,9 @@ from datetime import datetime
 from hashlib import sha256
 import functions
 import paramiko
+import socket
+import tempfile
+import contextlib
 
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData,ffmpeg_resolution):
@@ -192,7 +195,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             EncKey=VideoData['FldEncKey']
             EncKeyIV=VideoData['FldEncKeyIV']
             print('entered the function')
-            for index in range(101,133):
+            for index in range(1,33):
                 encrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}.ts')
                 if os.path.exists(encrypted_input_file):
                     decrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}_b.ts')
@@ -214,7 +217,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                         ffmpeg
                         .input(decrypted_input_file)
                         .overlay(ffmpeg_inwatermark)
-                        .output(decrypted_watermarked_file, vcodec='libx264', acodec='copy', copyts=None, vsync=0, muxdelay=0)
+                        .output(decrypted_watermarked_file, vcodec='libx264', acodec='copy', copyts=None, fps_mode=0, muxdelay=0)
                         .run()
                     )
                     openssl_encrypt_command = [
@@ -232,75 +235,147 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     
                 else:
                     pass
-        def ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution):
+
+        def _handle_progress_socket(sock, total_duration, ConversionID, Quality):
+            """Helper function to handle FFmpeg progress updates via socket"""
+            connection, _ = sock.accept()
+            data = ""
+            with connection:
+                while True:
+                    try:
+                        chunk = connection.recv(1024).decode()
+                        if not chunk:
+                            break
+                        data += chunk
+                        lines = data.split('\n')
+                        data = lines.pop()  # Keep incomplete line for next iteration
+                        
+                        logging.debug("Socket data received: %s", chunk)
+                        
+                        for line in lines:
+                            if not line:
+                                continue
+                            key, _, value = line.partition('=')
+                            key, value = key.strip(), value.strip()
+                            
+                            logging.debug("Progress key-value: %s = %s", key, value)
+                            
+                            if key == 'out_time_us':
+                                try:
+                                    elapsed_time = float(value) / 1000000  # Convert microseconds to seconds
+                                    if elapsed_time > 0:  # Only update if we have valid time
+                                        percentage = min((elapsed_time / total_duration) * 100, 100)
+                                        logging.info("Conversion progress: %.2f%%", percentage)
+                                        redis_update_video_quality(ConversionID, Quality, round(percentage, 2))
+                                except ValueError:
+                                    logging.warning("Invalid time value received: %s", value)
+                                    continue
+                            elif key == 'progress':
+                                if value in ('end', 'error'):
+                                    logging.info("FFmpeg progress status: %s", value)
+                                    return value
+                    except Exception as e:
+                        logging.error("Error processing FFmpeg progress: %s", str(e))
+                        continue  # Keep trying to process progress updates
+
+        def ffmpeg_conversion(ConversionID, Quality, ffmpeg_resolution):
             OriginalVideo_Name = os.path.join(local_original_path, f'{VideoName}{Extension}')
             ConvertedVideo_m3u8 = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1.m3u8')
-            Thumbnail_Path=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1.png')
+            Thumbnail_Path = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1.png')
             FFmpegSegment_Name = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1%d.ts')
             EncKeyInfo_File = os.path.join(local_done_path, VideoName, enc_keyinfo_filename)
             EncKey_File = os.path.join(local_done_path, VideoName, enc_key_filename)
+
+            # Generate thumbnail first
             (
                 ffmpeg
                 .input(OriginalVideo_Name, ss=0)
-                .filter('scale', -1,Quality)
+                .filter('scale', -1, Quality)
                 .output(Thumbnail_Path, vframes=1, update=1)
                 .run()
             )
-            command = (
-                ffmpeg
-                .input(OriginalVideo_Name)
-                .output(
-                    ConvertedVideo_m3u8, 
-                    s=ffmpeg_resolution, 
-                    vcodec='libx264', 
-                    max_muxing_queue_size=9999, 
-                    preset='veryfast', 
-                    start_number=0, 
-                    hls_time=10,
-                    hls_list_size=0,
-                    hls_segment_filename=FFmpegSegment_Name,
-                    hls_key_info_file=EncKeyInfo_File,
-                    hls_allow_cache=1,
-                    # hls_enc=1,
-                    # hls_enc_key=EncKey_File,
-                    hls_playlist_type='vod',
+
+            # Get video duration
+            probe = ffmpeg.probe(OriginalVideo_Name)
+            total_duration = float(probe['format']['duration'])
+
+            # Create temporary socket for progress monitoring
+            socket_path = tempfile.mktemp()
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.bind(socket_path)
+            sock.listen(1)
+
+            try:
+                mssql_update_video_quality(ConversionID, Quality, 'Start')
+                
+                # Create log files
+                log_dir = os.path.join(local_done_path, VideoName, 'logs')
+                os.makedirs(log_dir, exist_ok=True)
+                ffmpeg_log_file = os.path.join(log_dir, f'ffmpeg_{Quality}.log')
+                
+                command = (
+                    ffmpeg
+                    .input(OriginalVideo_Name)
+                    .output(
+                        ConvertedVideo_m3u8,
+                        s=ffmpeg_resolution,
+                        vcodec='libx264',
+                        max_muxing_queue_size=9999,
+                        preset='veryfast',
+                        start_number=0,
+                        hls_time=10,
+                        hls_list_size=0,
+                        hls_segment_filename=FFmpegSegment_Name,
+                        hls_key_info_file=EncKeyInfo_File,
+                        hls_allow_cache=1,
+                        hls_playlist_type='vod'
+                    )
+                    .global_args('-progress', f'unix://{socket_path}')
+                    .overwrite_output()
+                    .compile()
                 )
-                .global_args('-progress', '-', '-loglevel', 'verbose')
-                .compile()
-            )
-            mssql_update_video_quality(ConversionID,Quality,'Start')
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-            total_duration = None
-            percentage = 0
-            
-            duration_regex = re.compile(r"Duration: (\d+):(\d+):(\d+).(\d+)")
-            time_regex = re.compile(r"time=(\d+):(\d+):(\d+).(\d+)")
 
-            while True:
-                line = process.stderr.readline()
-                # print(line)  # Debug output
-                if line == '' and process.poll() is not None:
-                    break
-                if line:
-                    if total_duration is None:
-                        match = duration_regex.search(line)
-                        if match:
-                            hours = int(match.group(1))
-                            minutes = int(match.group(2))
-                            seconds = int(match.group(3))
-                            milliseconds = int(match.group(4))
-                            total_duration = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
+                # Start FFmpeg process with output redirection
+                with open(ffmpeg_log_file, 'w') as log_file:
+                    process = subprocess.Popen(
+                        command,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        bufsize=1  # Line buffered
+                    )
+                    
+                    # Start separate threads to handle stdout and stderr
+                    def log_output(pipe, prefix):
+                        for line in pipe:
+                            log_file.write(f"{prefix}: {line}")
+                            log_file.flush()
+                            logging.debug("%s: %s", prefix, line.strip())
+                    
+                    import threading
+                    stdout_thread = threading.Thread(target=log_output, args=(process.stdout, "STDOUT"))
+                    stderr_thread = threading.Thread(target=log_output, args=(process.stderr, "STDERR"))
+                    stdout_thread.start()
+                    stderr_thread.start()
+                    
+                    # Monitor progress through socket
+                    result = _handle_progress_socket(sock, total_duration, ConversionID, Quality)
+                    
+                    # Wait for process and logging threads to complete
+                    process.wait()
+                    stdout_thread.join()
+                    stderr_thread.join()
+                    
+                    if process.returncode != 0 or result == 'error':
+                        logging.error("FFmpeg conversion failed with return code: %d", process.returncode)
+                        raise Exception(f"FFmpeg conversion failed. Check logs at {ffmpeg_log_file}")
 
-                    match = time_regex.search(line)
-                    if match and total_duration:
-                        hours = int(match.group(1))
-                        minutes = int(match.group(2))
-                        seconds = int(match.group(3))
-                        milliseconds = int(match.group(4))
-                        elapsed_time = hours * 3600 + minutes * 60 + seconds + milliseconds / 100.0
-                        percentage = (elapsed_time / total_duration) * 100
-                        print(f"Elapsed time: {elapsed_time} seconds, Percentage: {percentage:.2f}%")  # Debug output
-                        redis_update_video_quality(ConversionID,Quality,round(percentage,2))
+            finally:
+                # Cleanup
+                sock.close()
+                if os.path.exists(socket_path):
+                    os.unlink(socket_path)
+
         MP4Transfer()
         fileTransfer('receive', VideoName, Quality)
         ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution)
@@ -320,4 +395,15 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         )
         raise
 
-logging.basicConfig(level=logging.INFO)
+# Ensure log directory exists
+log_dir = os.path.dirname(os.path.join(os.getenv('LOCAL_DONE_PATH'), 'conversion.log'))
+os.makedirs(log_dir, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Output to console
+        logging.FileHandler(os.path.join(os.getenv('LOCAL_DONE_PATH'), 'conversion.log'))  # Output to file
+    ]
+)
