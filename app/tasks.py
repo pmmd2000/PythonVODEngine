@@ -217,7 +217,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                         ffmpeg
                         .input(decrypted_input_file)
                         .overlay(ffmpeg_inwatermark)
-                        .output(decrypted_watermarked_file, vcodec='libx264', acodec='copy', copyts=None, fps_mode=0, muxdelay=0)
+                        .output(decrypted_watermarked_file, vcodec='libx264', acodec='copy', copyts=None, fps_mode='passthrough' , muxdelay=0)
                         .run()
                     )
                     openssl_encrypt_command = [

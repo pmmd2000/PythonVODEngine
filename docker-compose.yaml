@@ -39,5 +39,7 @@ services:
       - ./app/.env
     environment:
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
+    depends_on:
+      - gunicorn
 #volumes:
 #  celery:
