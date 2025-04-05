@@ -10,6 +10,7 @@ from hashlib import sha256
 auth_api_secret=os.getenv('AUTH_API_SECRET')
 auth_api_host=os.getenv('AUTH_API_HOST')
 jwt_secret_key=os.getenv('JWT_SECRET_KEY')
+user_jwt_secret_key=os.getenv('USER_JWT_SECRET_KEY')
 hash_salt=os.getenv('HASH_SALT')
 Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
 
@@ -40,7 +41,7 @@ def WriteMasterM3U8(ConversionID,VideoName,ConvertedVideos_path):
     if db_connections.redis_check_keyvalue(ConversionID,480) == '100':
         MasterM3U8_480=f'#EXT-X-STREAM-INF:BANDWIDTH=450000,AVERAGE-BANDWIDTH=400000,RESOLUTION=854x480,FRAME-RATE=25,CODECS="avc1.64001f,mp4a.40.2"\n480_{VideoName}_1.m3u8\n'
     MasterM3U8=f'#EXTM3U\n{MasterM3U8_1080}{MasterM3U8_720}{MasterM3U8_480}'
-    output_file=os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}.m3u8')
+    output_file=os.path.join(ConvertedVideos_path, VideoName, f'{VideoName}_1.m3u8')
     with open(output_file, 'w') as f:
         f.write(MasterM3U8)
     return MasterM3U8
@@ -84,33 +85,44 @@ def jwt_required_admin(func):
 def jwt_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        auth_param = request.headers.get('Authorization')
-        video_dir = kwargs.get("video_dir")
+        video_dir = kwargs.get("url_ConvertedVideo_dir")
+
+        # Bypass authentication for video_dir that starts with specific prefixes
+        if video_dir and (video_dir.startswith("karabiz") or video_dir.startswith("Karabiz") or video_dir.startswith("Azmoon")):
+            kwargs['auth_param'] = None
+            return func(*args, **kwargs)
+
+        auth_param = request.args.get("auth")
         if not auth_param:
             return "Unauthorized", 401
+
         try:
-            decoded = jwt.decode(auth_param, jwt_secret_key, algorithms=["HS256"])
+            decoded = jwt.decode(auth_param, user_jwt_secret_key, algorithms=["HS256"], options={"verify_exp": False, "verify_nbf": False})
+        except jwt.exceptions.ImmatureSignatureError:
+            pass
         except jwt.ExpiredSignatureError:
             return "Unauthorized", 401
+        except jwt.InvalidSignatureError:
+            return "Malformed", 420
+        except jwt.DecodeError:
+            return "Server Error", 500
         except jwt.InvalidTokenError:
+            return "Unauthorized", 400
+
+        
+        local_stream = decoded.get("localStream")
+        if local_stream != video_dir:
             return "Unauthorized", 401
 
-        userId = decoded.get("userId")
-        if not userId:
-            return "Unauthorized", 401
-        response = request.post(auth_api_host, json={
-            "userId": userId,
-            "secret": auth_api_secret,
-            "StreamName": video_dir})
-        if response.status_code != 200:
-            return "Gateway Timeout", 504
+        remote_ip = get_real_ip()
+        jwt_ip = decoded.get("ip")
+        if remote_ip != jwt_ip:
+            return "Unauthorized", 403
 
-        access_info = response.json().get("data")
-        if not access_info or access_info[0].get("access") != 1:
-            return "Unauthorized", 401
-        kwargs['jwt_payload'] = decoded
+        kwargs['auth_param'] = auth_param
         return func(*args, **kwargs)
     return wrapper
+
 
 # def create_symlinks(VideoName,ConvertedVideos_path):
 def replace_m3u8_content(ConversionID,input_file,token):
@@ -149,3 +161,9 @@ def get_real_ip():
     else:
         ip = request.headers.getlist("X-Forwarded-For")[0]
     return ip
+
+def replace_auth_params(content, auth_param):
+    content = re.sub(r'(?<=enc_1)\.key\b', f'.key?auth={auth_param}', content)
+    content = re.sub(r'\.ts\b', f'.ts?auth={auth_param}', content)
+    content = re.sub(r'\.m3u8\b', f'.m3u8?auth={auth_param}', content)
+    return content

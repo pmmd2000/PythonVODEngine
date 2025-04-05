@@ -18,13 +18,10 @@ def ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Sy
     
     # enc.key and enc.keyinfo creation
     EncKeyBytes=bytes.fromhex(VideoData['FldEncKey'])
-    EncKeyIVHex = VideoData['FldEncKeyIV']
     with open(os.path.join(ConvertedVideo_path,enc_key_filename), 'wb') as f:
         f.write(EncKeyBytes)
         ##enc.keyinfo PATH CHANGE
-    keyinfo=f"{enc_key_filename}\n{EncKey_File}\n{EncKeyIVHex}"
-    with open(os.path.join(ConvertedVideo_path,enc_keyinfo_filename), 'w') as f:
-        f.write(keyinfo)
+    
     ConversionID=VideoData['FldPkConversion']
     db_connections.mssql_insert_chunks(VideoName,ConversionID)
     # FFmpeg Conversion:

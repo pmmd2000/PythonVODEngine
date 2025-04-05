@@ -51,7 +51,7 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
             proxy_read_timeout 900;
             error_page 403 /403.html;
         }
-        location ~ /${CONVERTED_VIDEOS_PATH}/.+\.(m3u8|key)$ {
+        location ~ /${NGINX_CONVERTED_VIDEOS_PATH}/.+\.(m3u8|key)$ {
             access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
@@ -80,7 +80,7 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
             proxy_pass http://gunicorn:5000;
             proxy_read_timeout 900;
         }
-        location /${CONVERTED_VIDEOS_PATH}/ {
+        location /${NGINX_CONVERTED_VIDEOS_PATH}/ {
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' '${CORS_ORIGIN_DOMAIN}';
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';

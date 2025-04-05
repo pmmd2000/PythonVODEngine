@@ -25,14 +25,19 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
     remote_pass=os.getenv('REMOTE_PASS')
     remote_original_path=os.getenv('REMOTE_ORIGINAL_PATH')
     remote_done_path=os.getenv('REMOTE_DONE_PATH')
+    VideoID = VideoData['FldPkVideo']
     local_done_path=os.getenv('LOCAL_DONE_PATH')
+    local_done_videopath=os.path.join(local_done_path,str(Quality)+"_"+VideoName)
     local_original_path=os.getenv('LOCAL_ORIGINAL_PATH')
+    local_original_videopath=os.path.join(local_original_path,str(Quality)+"_"+VideoName)
     enc_key_filename=os.getenv('ENC_KEY_NAME')
     enc_keyinfo_filename=os.getenv('ENC_KEYINFO_NAME')
     
     # Create required directories if they don't exist
     os.makedirs(local_done_path, exist_ok=True)
     os.makedirs(local_original_path, exist_ok=True)
+    os.makedirs(local_done_videopath, exist_ok=True)
+    os.makedirs(local_original_videopath, exist_ok=True)
     
     try:
         
@@ -50,13 +55,12 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         hash_salt=os.getenv('HASH_SALT')
         ConversionID=VideoData['FldPkConversion']
         Extension= VideoData['FldExtension']
-        VideoID = VideoData['FldPkVideo']
         Symlink_path = os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
 
         def MP4Transfer():
             try:
                 remote_file=os.path.join(remote_original_path,f"{VideoName}{Extension}")
-                local_file=os.path.join(local_original_path,f"{VideoName}{Extension}")
+                local_file=os.path.join(local_original_videopath,f"{VideoName}{Extension}")
                 if os.path.exists(local_file):
                     return logging.info(f"Skipping transfer, {VideoName}{Extension} already exists")
                 ssh=paramiko.SSHClient()
@@ -82,16 +86,15 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                         sftp.mkdir(os.path.join(remote_done_path, VideoName))
                     except IOError:
                         pass  # Directory might already exist
-                    local_dir = os.path.join(local_done_path, VideoName)
+                    local_dir = os.path.join(local_done_videopath, VideoName)
                     remote_dir = os.path.join(remote_done_path, VideoName)
                     files_to_transfer = [
                         f"{Quality}_{VideoName}_1.m3u8",
-                        f"{VideoName}.m3u8",
+                        f"{VideoName}_1.m3u8",
                         enc_key_filename,
-                        enc_keyinfo_filename,
                         f"{Quality}_{VideoName}_1.png"
                     ]
-                    ts_pattern = f"{Quality}_{VideoName}_1*.ts"
+                    ts_pattern = f"{Quality}_{VideoName}*.ts"
                     for file in os.listdir(local_dir):
                         if fnmatch.fnmatch(file, ts_pattern):
                             files_to_transfer.append(file)
@@ -105,11 +108,11 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
 
                 elif direction == 'receive':
                     # Create local directory if it doesn't exist
-                    os.makedirs(os.path.join(local_done_path, VideoName), exist_ok=True)
+                    os.makedirs(os.path.join(local_done_videopath, VideoName), exist_ok=True)
 
-                    files_to_receive = [enc_key_filename, enc_keyinfo_filename]
+                    files_to_receive = [enc_key_filename]
                     remote_dir = os.path.join(remote_done_path, VideoName)
-                    local_dir = os.path.join(local_done_path, VideoName)
+                    local_dir = os.path.join(local_done_videopath, VideoName)
 
                     for filename in files_to_receive:
                         remote_file = os.path.join(remote_dir, filename)
@@ -162,12 +165,13 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 raise TypeError("Arguments not valid")
         # duplicate function
         def cleanup():
-            if os.path.isfile(os.path.join(local_original_path,f"{VideoName}{Extension}")):
-                os.remove(os.path.join(local_original_path,f"{VideoName}{Extension}"))
+            if os.path.isfile(os.path.join(local_original_videopath,f"{VideoName}{Extension}")):
+                os.remove(os.path.join(local_original_videopath,f"{VideoName}{Extension}"))
+                os.rmdir(os.path.join(local_original_videopath))
                 logging.info(f"Original {VideoName}{Extension} file removed")
-            if os.path.exists(os.path.join(local_done_path,VideoName)):
-                for filename in os.listdir(os.path.join(local_done_path,VideoName)):
-                    file_path=os.path.join(local_done_path,VideoName,filename)
+            if os.path.exists(os.path.join(local_done_videopath,VideoName)):
+                for filename in os.listdir(os.path.join(local_done_videopath,VideoName)):
+                    file_path=os.path.join(local_done_videopath,VideoName,filename)
                     try:
                         if os.path.isfile(file_path) or os.path.islink(file_path):
                             os.unlink(file_path)
@@ -175,10 +179,11 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                             shutil.rmtree(file_path)
                     except Exception as e:
                         print('Failed to delete %s. Reason: %s' % (file_path, e))
-                os.rmdir(os.path.join(local_done_path,VideoName))
+                os.rmdir(os.path.join(local_done_videopath,VideoName))
+                os.rmdir(os.path.join(local_done_videopath))
                 logging.info(f"Converted {VideoName} directory removed")
         def mssql_insert_chunks(ConversionID,Quality,VideoName):
-            OutputDir = os.path.join(local_done_path, VideoName)
+            OutputDir = os.path.join(local_done_videopath, VideoName)
             SymlinkDir = os.path.join(Symlink_path,VideoName)
             cursor = mssql_connection.cursor(as_dict=True)
             for file in (file for file in os.listdir(OutputDir) if file.startswith(str(Quality))):
@@ -191,16 +196,16 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 # os.symlink(file_absolute_path,file_symlink_absolute_path)
             mssql_connection.commit()
             cursor.close()
-        def watermark_video(local_done_path,VideoName,Quality,VideoData,watermark_path):
+        def watermark_video(local_done_videopath,VideoName,Quality,VideoData,watermark_path):
             EncKey=VideoData['FldEncKey']
             EncKeyIV=VideoData['FldEncKeyIV']
             print('entered the function')
-            for index in range(1,33):
-                encrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}.ts')
+            for index in range(101,133):
+                encrypted_input_file=os.path.join(local_done_videopath,VideoName,f'{Quality}_{VideoName}_1{index}.ts')
                 if os.path.exists(encrypted_input_file):
-                    decrypted_input_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}_b.ts')
-                    decrypted_watermarked_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_1{index}_e.ts')
-                    encrypted_watermarked_file=os.path.join(local_done_path,VideoName,f'{Quality}_{VideoName}_l{index}.ts')
+                    decrypted_input_file=os.path.join(local_done_videopath,VideoName,f'{Quality}_{VideoName}_1{index}_b.ts')
+                    decrypted_watermarked_file=os.path.join(local_done_videopath,VideoName,f'{Quality}_{VideoName}_1{index}_e.ts')
+                    encrypted_watermarked_file=os.path.join(local_done_videopath,VideoName,f'{Quality}_{VideoName}_l{index}.ts')
                     watermark_file=os.path.join(watermark_path,f'watermark_{Quality}.png')
                     openssl_decrypt_command = [
                     "openssl",
@@ -217,7 +222,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                         ffmpeg
                         .input(decrypted_input_file)
                         .overlay(ffmpeg_inwatermark)
-                        .output(decrypted_watermarked_file, vcodec='libx264', acodec='copy', copyts=None, fps_mode='passthrough' , muxdelay=0)
+                        .output(decrypted_watermarked_file, vcodec='libx264', acodec='copy', copyts=None, fps_mode='passthrough' ,map="0:a", muxdelay=0)
                         .run()
                     )
                     openssl_encrypt_command = [
@@ -279,13 +284,17 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                         continue  # Keep trying to process progress updates
 
         def ffmpeg_conversion(ConversionID, Quality, ffmpeg_resolution):
-            OriginalVideo_Name = os.path.join(local_original_path, f'{VideoName}{Extension}')
-            ConvertedVideo_m3u8 = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1.m3u8')
-            Thumbnail_Path = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1.png')
-            FFmpegSegment_Name = os.path.join(local_done_path, VideoName, f'{Quality}_{VideoName}_1%d.ts')
-            EncKeyInfo_File = os.path.join(local_done_path, VideoName, enc_keyinfo_filename)
-            EncKey_File = os.path.join(local_done_path, VideoName, enc_key_filename)
+            OriginalVideo_Name = os.path.join(local_original_videopath, f'{VideoName}{Extension}')
+            ConvertedVideo_m3u8 = os.path.join(local_done_videopath, VideoName, f'{Quality}_{VideoName}_1.m3u8')
+            Thumbnail_Path = os.path.join(local_done_videopath, VideoName, f'{Quality}_{VideoName}_1.png')
+            FFmpegSegment_Name = os.path.join(local_done_videopath, VideoName, f'{Quality}_{VideoName}_1%d.ts')
+            EncKeyInfo_File = os.path.join(local_done_videopath, VideoName, enc_keyinfo_filename)
+            EncKey_File = os.path.join(local_done_videopath, VideoName, enc_key_filename)
+            EncKeyIVHex = VideoData['FldEncKeyIV']
+            keyinfo=f"{enc_key_filename}\n{EncKey_File}\n{EncKeyIVHex}"
 
+            with open(os.path.join(local_done_videopath,VideoName,enc_keyinfo_filename), 'w') as f:
+                f.write(keyinfo)
             # Generate thumbnail first
             (
                 ffmpeg
@@ -309,7 +318,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 mssql_update_video_quality(ConversionID, Quality, 'Start')
                 
                 # Create log files
-                log_dir = os.path.join(local_done_path, VideoName, 'logs')
+                log_dir = os.path.join(local_done_videopath, VideoName, 'logs')
                 os.makedirs(log_dir, exist_ok=True)
                 ffmpeg_log_file = os.path.join(log_dir, f'ffmpeg_{Quality}.log')
                 
@@ -381,12 +390,12 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution)
         redis_update_video_quality(ConversionID, Quality, 100)
         mssql_update_video_quality(ConversionID,Quality,'End')
-        watermark_video(local_done_path,VideoName,Quality,VideoData,watermark_path)
+        watermark_video(local_done_videopath,VideoName,Quality,VideoData,watermark_path)
         mssql_insert_chunks(ConversionID,Quality,VideoName)
-        functions.WriteMasterM3U8(ConversionID,VideoName,local_done_path)
+        functions.WriteMasterM3U8(ConversionID,VideoName,local_done_videopath)
         fileTransfer('send',VideoName,Quality)
         CheckConversionEndRedis(ConversionID)
-        # cleanup()
+        cleanup()
         return f"{ConversionID}:{Quality}"
     except Exception as e:
         self.update_state(

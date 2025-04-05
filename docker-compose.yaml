@@ -7,9 +7,8 @@ services:
     #   - 5000:5000
 #    user: 1000:1000
     volumes:
-      - ./app/done:/app/done
-      - ./app/done_symlink/:/app/done_symlink/
-      - ./app/OriginalVideos:/app/OriginalVideos
+      - ./done:/done
+      - ./OriginalVideos:/OriginalVideos
     env_file:
       - ./app/.env
   celery:
@@ -18,9 +17,8 @@ services:
       dockerfile: Dockerfile_2
 #    user: 1000:1000
     volumes:
-      - ./app/done:/app/done
-      - ./app/done_symlink/:/app/done_symlink/
-      - ./app/OriginalVideos:/app/OriginalVideos
+      - ./done:/done
+      - ./OriginalVideos:/OriginalVideos
       - ./celery:/celery
     env_file:
       - ./app/.env
@@ -31,8 +29,8 @@ services:
       - ./nginx/templates/conf.d/:/etc/nginx/templates/conf.d/
       - ./certs/:/etc/nginx/certs/
       - ./logs/:/etc/nginx/logs/
-      - ./app/done/:/app/done/
-      - ./app/done_symlink/:/app/done_symlink/
+      - ./done/:/done/
+      - ./done_symlink/:/done_symlink/
     ports:
       - 443:443
     env_file:
