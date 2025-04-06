@@ -16,6 +16,7 @@ import paramiko
 import socket
 import tempfile
 import contextlib
+import json
 
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData,ffmpeg_resolution):
@@ -151,7 +152,17 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 pass
         def redis_update_video_quality(ConversionID, Quality: int, QualityPercentile:float):
             if Quality in (480, 720, 1080):
-                r.set(f"{ConversionID}:{Quality}",str(QualityPercentile),ex=86400)
+                # Keep the key-value pair for persistence
+                r.set(f"{ConversionID}:{Quality}", str(QualityPercentile), ex=86400)
+                
+                # Publish progress update to channel
+                channel = f"{ConversionID}:{Quality}"
+                message = json.dumps({
+                    'conversionID': ConversionID,
+                    'quality': Quality,
+                    'progress': QualityPercentile
+                })
+                r.publish(channel, message)
             else:
                 raise TypeError("Quality not valid")
         def mssql_update_video_quality(ConversionID, Quality: int,StartorEnd):

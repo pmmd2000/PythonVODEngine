@@ -9,3 +9,5 @@ kombu
 ffmpeg-python
 Gunicorn
 paramiko
+flask_socketio
+eventlet

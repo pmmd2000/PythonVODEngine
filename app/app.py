@@ -1,6 +1,8 @@
 from types import NoneType
 from flask import Flask, request, make_response, send_from_directory
+from flask_socketio import SocketIO
 import os
+import json
 from dotenv import load_dotenv
 import db_connections
 import Conversion
@@ -18,6 +20,8 @@ VideoPkField = str(os.getenv("DB_VIDEOPK_FIELD"))
 base_url = f"{os.getenv('PROTOCOL')}://{os.getenv('HOST')}"
 done_dir=os.getenv('CONVERTED_VIDEOS_PATH')
 
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 @app.get('/api/getVideos')
 @functions.jwt_required_admin
 def video_list(jwt_payload):
@@ -25,7 +29,7 @@ def video_list(jwt_payload):
     print(base_url)
     for video in VideoData:
         VideoName = video['VideoName']
-        thumbnail = functions.complete_url(base_url,ConvertedVideos_path,VideoName,f'480_{VideoName}.png')
+        thumbnail = functions.complete_url(base_url,ConvertedVideos_path,VideoName,f'480_{VideoName}_1.png')
         video['thumbnail']=thumbnail
     return VideoData, 200
 
@@ -110,14 +114,22 @@ def video_upload(jwt_payload):
             return "Invalid file type", 400
 
     return {"message": "Chunk upload successful", "filename": filename}, 200
-    
-@app.get('/api/getVideoProgress')
-@functions.jwt_required_admin
-def video_progress(jwt_payload):
-    ConversionID=request.json['ConversionID']
-    Quality=request.json['Quality']
-    Progress=db_connections.redis_check_keyvalue(ConversionID,Quality)
-    return Progress
+
+@socketio.on('connect')
+@functions.jwt_required_socket
+def handle_connect():
+    return True
+
+@socketio.on('subscribe_progress')
+def handle_subscribe(data):
+    conversion_id = data.get('conversionID')
+    quality = data.get('quality')
+    if not conversion_id or not quality:
+        return False
+        
+    channel = f"{conversion_id}:{quality}"
+    db_connections.subscribe_to_progress(channel, request.sid)
+    return True
 
 @app.route("/done/<url_ConvertedVideo_dir>/<url_filename>")
 @functions.jwt_required
@@ -160,3 +172,6 @@ def serve_file(url_ConvertedVideo_dir, url_filename, auth_param):
         response = send_from_directory(os.path.dirname(filepath), os.path.basename(filepath), as_attachment=True)
 
     return response
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)

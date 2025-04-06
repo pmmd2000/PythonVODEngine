@@ -128,10 +128,33 @@ paths:
                   format: int64
                 thumbnail:
                   type: string
+                isFinished:
+                  type: boolean
+                conversionID:
+                  type: integer
+                  format: int64
+                duration:
+                  type: string
+                  description: Video duration in HH:MM:SS format
+                480_finish:
+                  type: string
+                  format: date-time
+                720_finish:
+                  type: string
+                  format: date-time
+                1080_finish:
+                  type: string
+                  format: date-time
             example:
               - VideoName: "Studio4_20250705_185325"
                 VideoID: 15
                 thumbnail: https://vod.taamland.ir/done/Studio4_20250705_185325/480_Studio4_20250705_185325.png
+                isFinished: true
+                conversionID: 24
+                duration: "01:30:45"
+                480_finish: "2025-04-05 00:50:43.000"
+                720_finish: "2025-04-05 00:55:22.000"
+                1080_finish: "2025-04-05 01:05:12.000"
               - VideoName: "Studio3_20260613_174319"
                 VideoID: 26
                 thumbnail: https://vod.taamland.ir/done/Studio3_20260613_174319/480_Studio3_20260613_174319.png
@@ -168,3 +191,36 @@ paths:
             example: 59.24
         500:
           description: Server error
+  /socket.io:
+    get:
+      tags:
+        - "Conversion Operations"
+      summary: WebSocket Connection for Video Progress
+      description: |
+        Connect to WebSocket endpoint to receive real-time progress updates.
+        Use Socket.IO client to connect and subscribe to progress events.
+        
+        Example usage:
+        ```javascript
+        const socket = io('https://vod.taamland.ir', {
+          query: { token: 'your-jwt-token' }
+        });
+        
+        socket.emit('subscribe_progress', {
+          conversionID: 24,
+          quality: 720
+        });
+        
+        socket.on('progress_update', (data) => {
+          console.log('Progress:', data.progress);
+        });
+        ```
+      parameters:
+        - name: token
+          in: query
+          required: true
+          type: string
+          description: JWT token for authentication
+      responses:
+        101:
+          description: WebSocket connection established

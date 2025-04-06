@@ -51,6 +51,21 @@ log_format logger-json escape=json '{"IP": "$remote_addr", "datetime": "$time_is
             proxy_read_timeout 900;
             error_page 403 /403.html;
         }
+
+        # Socket.IO endpoint
+        location /socket.io/ {
+            access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_cache off;
+            proxy_pass http://gunicorn:5000;
+            proxy_read_timeout 86400; # Increased timeout for long-polling
+        }
+
         location ~ /${NGINX_CONVERTED_VIDEOS_PATH}/.+\.(m3u8|key)$ {
             access_log /etc/nginx/logs/${HOST}.log logger-json buffer=8k;
             if ($request_method = 'OPTIONS') {

@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import redis
+from flask_socketio import emit
+import threading
+import json
 
 load_dotenv()
 
@@ -18,27 +21,82 @@ r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), deco
 
 hash_salt=os.getenv('HASH_SALT')
 mssql_query_select_video="SELECT * FROM dbo.TblVideo WHERE FldName=%s"
-mssql_query_select_video_star="SELECT FldPkVideo as VideoID,FldName as VideoName FROM dbo.TblVideo"
+mssql_query_select_video_star="""
+    SELECT 
+        v.FldPkVideo as VideoID, 
+        v.FldName as VideoName, 
+        c.FldConvertIsFinished as isFinished, 
+        c.FldPkConversion as conversionID,
+        c.FldDuration as duration,
+        c.FldConvert480End as '480_finish',
+        c.FldConvert720End as '720_finish',
+        c.FldConvert1080End as '1080_finish'
+    FROM dbo.TblVideo v 
+    LEFT JOIN dbo.TblConversion c ON v.FldPkVideo = c.FldFkVideo 
+    WHERE c.FldPkConversion = (
+        SELECT MAX(FldPkConversion) 
+        FROM dbo.TblConversion 
+        WHERE FldFkVideo = v.FldPkVideo
+    )"""
 mssql_query_select_video_conversion="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkVideo=FldFkVideo"
 mssql_query_select_conversion="SELECT * FROM dbo.TblConversion WHERE FldFkVideo=%s"
-mssql_query_select_all="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkVideo=FldFkVideo WHERE FldPkConversion=%s"
+mssql_query_select_all="SELECT * FROM dbo.TblVideo INNER JOIN dbo.TblConversion ON FldPkConversion=%s"
 mssql_query_insert_video="INSERT INTO dbo.TblVideo (FldName,FldNameHash,FldExtension) VALUES (%s,%s,%s)"
 mssql_query_insert_conversion="INSERT INTO dbo.TblConversion (FldFkVideo,FldInsertDatetime,FldEncKey,FldEncKeyIV,FldDuration) VALUES (%s,%s,%s,%s,%s)"
 mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
 mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
 
+
 def redis_check_keyvalue(ConversionID,Quality):
-    progress=r.get(f"{ConversionID}:{Quality}")
-    if progress==None:
-        progress='0'
-    return progress
+        progress=r.get(f"{ConversionID}:{Quality}")
+        if progress is None:
+            progress='0'
+        return progress
+
+# Create a Redis pub/sub connection
+redis_pubsub = r.pubsub()
+
+def redis_update_video_quality(conversion_id, quality, progress):
+    """Publish progress updates to Redis channel"""
+    channel = f"{conversion_id}:{quality}"
+    r.publish(channel, json.dumps({
+        'conversionID': conversion_id,
+        'quality': quality,
+        'progress': progress
+    }))
+
+def subscribe_to_progress(channel, socket_id):
+    """Subscribe to Redis channel and forward messages to WebSocket"""
+    def message_handler():
+        pubsub = r.pubsub()
+        pubsub.subscribe(channel)
+        for message in pubsub.listen():
+            if message['type'] == 'message':
+                data = json.loads(message['data'])
+                emit('progress_update', data, room=socket_id)
+                
+    thread = threading.Thread(target=message_handler)
+    thread.daemon = True
+    thread.start()
+
+def format_duration(seconds):
+    if seconds is None:
+        return "00:00:00"
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    remaining_seconds = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{remaining_seconds:02d}"
 
 def mssql_select_video_star():
     cursor = mssql_connection.cursor(as_dict=True)
     cursor.execute(mssql_query_select_video_star)
-    record = cursor.fetchall()
+    records = cursor.fetchall()
+    for record in records:
+        if 'duration' in record:
+            record['duration'] = format_duration(record['duration'])
     cursor.close()
-    return record
+    return records
+
 def mssql_select_video(VideoName):
     cursor = mssql_connection.cursor(as_dict=True)
     cursor.execute(mssql_query_select_video,(VideoName,))
@@ -77,7 +135,7 @@ def mssql_update_video_conversion_finished(ConversionID, ConversionState: bool):
     cursor.execute(query, (int(ConversionState), ConversionID))
     mssql_connection.commit()
     cursor.close()   
-# duplicate function
+
 def mssql_insert_chunks(VideoName,ConversionID):
     ConvertedVideos_path = str(os.getenv('CONVERTED_VIDEOS_PATH'))
     Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
