@@ -5,9 +5,7 @@ import jwt
 from functools import wraps
 from flask import request
 import redis
-from flask_socketio import disconnect
-# import functions
-from hashlib import sha256
+
 auth_api_secret=os.getenv('AUTH_API_SECRET')
 auth_api_host=os.getenv('AUTH_API_HOST')
 jwt_secret_key=os.getenv('JWT_SECRET_KEY')
@@ -168,22 +166,3 @@ def replace_auth_params(content, auth_param):
     content = re.sub(r'\.ts\b', f'.ts?auth={auth_param}', content)
     content = re.sub(r'\.m3u8\b', f'.m3u8?auth={auth_param}', content)
     return content
-
-def jwt_required_socket(f):
-    @wraps(f)
-    def wrapped(*args, **kwargs):
-        auth_header = request.args.get('token')
-        if not auth_header:
-            disconnect()
-            return False
-            
-        try:
-            decoded = jwt.decode(auth_header, jwt_secret_key, algorithms=["HS256"])
-            return f(*args, **kwargs)
-        except jwt.ExpiredSignatureError:
-            disconnect()
-            return False
-        except jwt.InvalidTokenError:
-            disconnect()
-            return False
-    return wrapped

@@ -4,8 +4,6 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import redis
-from flask_socketio import emit
-import threading
 import json
 
 load_dotenv()
@@ -47,37 +45,16 @@ mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConver
 mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
 
 
-def redis_check_keyvalue(ConversionID,Quality):
-        progress=r.get(f"{ConversionID}:{Quality}")
-        if progress is None:
-            progress='0'
-        return progress
-
-# Create a Redis pub/sub connection
-redis_pubsub = r.pubsub()
+def redis_check_keyvalue(ConversionID, Quality):
+    progress = r.get(f"{ConversionID}:{Quality}")
+    if progress is None:
+        progress = '0'
+    return progress
 
 def redis_update_video_quality(conversion_id, quality, progress):
-    """Publish progress updates to Redis channel"""
-    channel = f"{conversion_id}:{quality}"
-    r.publish(channel, json.dumps({
-        'conversionID': conversion_id,
-        'quality': quality,
-        'progress': progress
-    }))
-
-def subscribe_to_progress(channel, socket_id):
-    """Subscribe to Redis channel and forward messages to WebSocket"""
-    def message_handler():
-        pubsub = r.pubsub()
-        pubsub.subscribe(channel)
-        for message in pubsub.listen():
-            if message['type'] == 'message':
-                data = json.loads(message['data'])
-                emit('progress_update', data, room=socket_id)
-                
-    thread = threading.Thread(target=message_handler)
-    thread.daemon = True
-    thread.start()
+    """Update progress in Redis"""
+    key = f"{conversion_id}:{quality}"
+    r.set(key, str(progress), ex=86400)  # Expire after 24 hours
 
 def format_duration(seconds):
     if seconds is None:
