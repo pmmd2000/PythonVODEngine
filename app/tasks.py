@@ -49,7 +49,7 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         database=os.getenv("DB_NAME","None")
 
         )
-        r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
+        r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), password=os.getenv('REDIS_PASS'), decode_responses=True)
         mssql_query_update_video = "UPDATE dbo.TblConversion SET {}=%s WHERE FldPkConversion=%s"
         mssql_query_insert_chunk= "INSERT INTO dbo.TblChunk (FldFkConversion,FldChunkName,FldChunkHash,FldChunkExtension) VALUES (%s,%s,%s,%s)"
         watermark_path=os.getenv('WATERMARK_PATH')

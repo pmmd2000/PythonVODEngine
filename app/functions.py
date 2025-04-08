@@ -13,7 +13,7 @@ user_jwt_secret_key=os.getenv('USER_JWT_SECRET_KEY')
 hash_salt=os.getenv('HASH_SALT')
 Symlink_path=os.getenv('CONVERTED_VIDEOS_SYMLINK_PATH')
 
-r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
+r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), password=os.getenv('REDIS_PASS'), decode_responses=True)
 
 def RawVideoNameCheck(RawVideoName):
     # Validate filename with regex
