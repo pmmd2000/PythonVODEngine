@@ -74,6 +74,25 @@ def mssql_select_video_star():
     cursor.close()
     return records
 
+def mssql_select_video_star_paginated(page, page_size):
+    offset = (page - 1) * page_size
+    # Count total records
+    cursor = mssql_connection.cursor(as_dict=True)
+    cursor.execute("SELECT COUNT(*) as total FROM dbo.TblVideo")
+    total_count = cursor.fetchone()['total']
+    cursor.close()
+
+    # Fetch paginated records
+    cursor = mssql_connection.cursor(as_dict=True)
+    paginated_query = mssql_query_select_video_star + f" ORDER BY v.FldPkVideo DESC OFFSET {offset} ROWS FETCH NEXT {page_size} ROWS ONLY"
+    cursor.execute(paginated_query)
+    records = cursor.fetchall()
+    for record in records:
+        if 'duration' in record:
+            record['duration'] = format_duration(record['duration'])
+    cursor.close()
+    return records, total_count
+
 def mssql_select_video(VideoName):
     cursor = mssql_connection.cursor(as_dict=True)
     cursor.execute(mssql_query_select_video,(VideoName,))

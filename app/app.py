@@ -21,13 +21,32 @@ done_dir=os.getenv('CONVERTED_VIDEOS_PATH')
 @app.get('/api/getVideos')
 @functions.jwt_required_admin
 def video_list(jwt_payload):
-    VideoData= db_connections.mssql_select_video_star()
-    print(base_url)
+    # Get pagination parameters from query string, with defaults
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 10))
+        if page < 1 or page_size < 1:
+            raise ValueError
+    except ValueError:
+        return {"message": "Invalid pagination parameters"}, 400
+
+    # Get paginated data and total count
+    VideoData, total_count = db_connections.mssql_select_video_star_paginated(page, page_size)
     for video in VideoData:
         VideoName = video['VideoName']
-        thumbnail = functions.complete_url(base_url,ConvertedVideos_path,VideoName,f'480_{VideoName}_1.png')
-        video['thumbnail']=thumbnail
-    return VideoData, 200
+        thumbnail = functions.complete_url(base_url, ConvertedVideos_path, VideoName, f'480_{VideoName}_1.png')
+        video['thumbnail'] = thumbnail
+
+    total_pages = (total_count + page_size - 1) // page_size
+    return {
+        "videos": VideoData,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    }, 200
 
 @app.post('/api/startVideoConversion') 
 @functions.jwt_required_admin
