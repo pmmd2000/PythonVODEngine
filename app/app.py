@@ -7,6 +7,7 @@ import db_connections
 import Conversion
 import functions
 from pathlib import Path
+import postgres_operations
 
 app = Flask(__name__)
 load_dotenv()
@@ -64,19 +65,28 @@ def video_insert(jwt_payload):
         if not Extension.lower() in ['.mp4', '.avi', '.mov', '.mkv']:
             return "Invalid file extension", 400
 
-        VideoData= db_connections.mssql_select_video(VideoName)
-        ConvertedVideo_dir=os.path.join(ConvertedVideos_path,VideoName)
-        OriginalVideo_File=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
-        if type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_dir) and os.path.exists(OriginalVideo_File):
-            Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
-            VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
-            Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Symlink_path)
-            return {'VideoID':VideoData['FldPkVideo'],'ConversionID':VideoData['FldPkConversion']},200
+        VideoData = db_connections.mssql_select_video(VideoName)
+        ConvertedVideo_dir = os.path.join(ConvertedVideos_path, VideoName)
+        OriginalVideo_File = os.path.join(OriginalVideos_path, f'{VideoName}{Extension}')
+        
+        if type(VideoData) == NoneType and not os.path.exists(ConvertedVideo_dir) and os.path.exists(OriginalVideo_File):
+            Duration = Conversion.get_video_duration(VideoName, Extension, OriginalVideos_path)
+            VideoData = db_connections.mssql_insert_video(VideoName, Extension, float(Duration))
+            
+            # Insert into PostgreSQL
+            try:
+                postgres_operations.insert_new_conversion(VideoName)
+            except Exception as e:
+                print(f"Warning: Failed to insert into PostgreSQL: {e}")
+                # Continue with the conversion even if PostgreSQL insert fails
+            
+            Conversion.ConvertVideo(VideoName, OriginalVideos_path, ConvertedVideos_path, VideoData, Symlink_path)
+            return {'VideoID': VideoData['FldPkVideo'], 'ConversionID': VideoData['FldPkConversion']}, 200
         elif os.path.exists(ConvertedVideo_dir):
             return "Video already present", 406 
-        elif not type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_dir):
+        elif not type(VideoData) == NoneType and not os.path.exists(ConvertedVideo_dir):
             return 'Previously converted video missing', 406
-        elif type(VideoData)==NoneType and not os.path.exists(OriginalVideo_File):
+        elif type(VideoData) == NoneType and not os.path.exists(OriginalVideo_File):
             return 'Video file missing', 404
 
     except Exception as e:

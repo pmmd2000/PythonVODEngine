@@ -390,12 +390,12 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         fileTransfer('receive', VideoName, Quality)
         ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution)
         redis_update_video_quality(ConversionID, Quality, 100)
-        mssql_update_video_quality(ConversionID,Quality,'End')
         watermark_video(local_done_videopath,VideoName,Quality,VideoData,watermark_path)
         mssql_insert_chunks(ConversionID,Quality,VideoName)
         functions.WriteMasterM3U8(ConversionID,VideoName,local_done_videopath)
         fileTransfer('send',VideoName,Quality)
         CheckConversionEndRedis(ConversionID)
+        mssql_update_video_quality(ConversionID,Quality,'End')
         cleanup()
         return f"{ConversionID}:{Quality}"
     except Exception as e:

@@ -9,3 +9,4 @@ kombu
 ffmpeg-python
 Gunicorn
 paramiko
+psycopg2-binary
