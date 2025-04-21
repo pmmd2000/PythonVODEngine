@@ -156,3 +156,47 @@ def mssql_insert_chunks(VideoName,ConversionID):
         
     mssql_connection.commit()
     cursor.close()
+
+def mssql_search_videos(search_term, page, page_size):
+    offset = (page - 1) * page_size
+    
+    # Count total matching records
+    cursor = mssql_connection.cursor(as_dict=True)
+    cursor.execute("""
+        SELECT COUNT(*) as total 
+        FROM dbo.TblVideo v
+        WHERE v.FldName LIKE %s
+    """, (f'%{search_term}%',))
+    total_count = cursor.fetchone()['total']
+    cursor.close()
+
+    # Fetch paginated search results
+    cursor = mssql_connection.cursor(as_dict=True)
+    search_query = f"""
+        SELECT DISTINCT
+            v.FldPkVideo as VideoID,
+            v.FldName as VideoName,
+            v.FldNameHash as VideoNameHash,
+            v.FldExtension as Extension,
+            c.FldDuration as duration,
+            c.FldConvertIsFinished as is_finished,
+            c.FldConvert480Start as '480_start',
+            c.FldConvert480End as '480_finish',
+            c.FldConvert720Start as '720_start',
+            c.FldConvert720End as '720_finish',
+            c.FldConvert1080Start as '1080_start',
+            c.FldConvert1080End as '1080_finish'
+        FROM dbo.TblVideo v 
+        LEFT JOIN dbo.TblConversion c ON v.FldPkVideo = c.FldFkVideo
+        WHERE v.FldName LIKE %s
+        ORDER BY v.FldPkVideo DESC 
+        OFFSET {offset} ROWS 
+        FETCH NEXT {page_size} ROWS ONLY
+    """
+    cursor.execute(search_query, (f'%{search_term}%',))
+    records = cursor.fetchall()
+    for record in records:
+        if 'duration' in record:
+            record['duration'] = format_duration(record['duration'])
+    cursor.close()
+    return records, total_count

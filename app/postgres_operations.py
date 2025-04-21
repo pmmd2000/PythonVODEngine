@@ -22,8 +22,8 @@ def insert_new_conversion(video_name: str):
         
         insert_query = '''
         INSERT INTO public."TblConversionFlow" 
-        ("FldFkLocalStream", "FldIsVOD") 
-        VALUES (%s, %s)
+        ("FldFkLocalStream", "FldIsVOD", "FldStartConversion") 
+        VALUES (%s, %s, CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
         RETURNING "FldPkConversionFlow"
         '''
         
