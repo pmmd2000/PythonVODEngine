@@ -59,6 +59,8 @@ def video_list(jwt_payload):
 @functions.jwt_required_admin
 def video_insert(jwt_payload):
     RawVideoName = request.json['VideoName']
+    force_convert = request.args.get('force', '').lower() == 'true'
+    
     try:
         VideoFullName = functions.RawVideoNameCheck(RawVideoName)
         if VideoFullName is None:
@@ -75,16 +77,26 @@ def video_insert(jwt_payload):
         ConvertedVideo_dir = os.path.join(ConvertedVideos_path, VideoName)
         OriginalVideo_File = os.path.join(OriginalVideos_path, f'{VideoName}{Extension}')
         
-        if type(VideoData) == NoneType and not os.path.exists(ConvertedVideo_dir) and os.path.exists(OriginalVideo_File):
+        # Allow force conversion for users with role=1
+        if force_convert and jwt_payload.get('role') == 1 and os.path.exists(OriginalVideo_File):
             Duration = Conversion.get_video_duration(VideoName, Extension, OriginalVideos_path)
             VideoData = db_connections.mssql_insert_video(VideoName, Extension, float(Duration))
-            
-            # Insert into PostgreSQL
             try:
                 postgres_operations.insert_new_conversion(VideoName)
             except Exception as e:
                 print(f"Warning: Failed to insert into PostgreSQL: {e}")
-                # Continue with the conversion even if PostgreSQL insert fails
+            
+            Conversion.ConvertVideo(VideoName, OriginalVideos_path, ConvertedVideos_path, VideoData, Symlink_path)
+            return {'VideoID': VideoData['FldPkVideo'], 'ConversionID': VideoData['FldPkConversion']}, 200
+            
+        if type(VideoData) == NoneType and not os.path.exists(ConvertedVideo_dir) and os.path.exists(OriginalVideo_File):
+            Duration = Conversion.get_video_duration(VideoName, Extension, OriginalVideos_path)
+            VideoData = db_connections.mssql_insert_video(VideoName, Extension, float(Duration))
+            
+            try:
+                postgres_operations.insert_new_conversion(VideoName)
+            except Exception as e:
+                print(f"Warning: Failed to insert into PostgreSQL: {e}")
             
             Conversion.ConvertVideo(VideoName, OriginalVideos_path, ConvertedVideos_path, VideoData, Symlink_path)
             return {'VideoID': VideoData['FldPkVideo'], 'ConversionID': VideoData['FldPkConversion']}, 200

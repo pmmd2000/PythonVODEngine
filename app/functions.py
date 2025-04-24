@@ -74,7 +74,7 @@ def jwt_required_admin(func):
             return "Unauthorized", 401
         except jwt.InvalidTokenError:
             return "Unauthorized", 401
-        if decoded['role'] not in (1,3,8):
+        if decoded['role'] not in (0,1,3,8):
             return 'Forbidden!',403
 
         kwargs['jwt_payload'] = decoded
