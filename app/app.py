@@ -28,32 +28,40 @@ def video_list(jwt_payload):
         search_term = request.args.get('search', '').strip()
         
         if page < 1 or page_size < 1:
-            raise ValueError
-    except ValueError:
-        return {"message": "Invalid pagination parameters"}, 400
+            raise ValueError("Invalid pagination parameters")
 
-    # Get paginated data and total count based on search
-    if search_term:
-        VideoData, total_count = db_connections.mssql_search_videos(search_term, page, page_size)
-    else:
-        VideoData, total_count = db_connections.mssql_select_video_star_paginated(page, page_size)
+        # Get paginated data and total count based on search
+        try:
+            if search_term:
+                VideoData, total_count = db_connections.mssql_search_videos(search_term, page, page_size)
+            else:
+                VideoData, total_count = db_connections.mssql_select_video_star_paginated(page, page_size)
+        except Exception as db_error:
+            app.logger.error(f"Database error: {str(db_error)}")
+            return {"message": "Database connection error"}, 503
 
-    for video in VideoData:
-        VideoName = video['VideoName']
-        thumbnail = functions.complete_url(base_url, ConvertedVideos_path, VideoName, f'480_{VideoName}_1.png')
-        video['thumbnail'] = thumbnail
+        for video in VideoData:
+            VideoName = video['VideoName']
+            thumbnail = functions.complete_url(base_url, ConvertedVideos_path, VideoName, f'480_{VideoName}_1.png')
+            video['thumbnail'] = thumbnail
 
-    total_pages = (total_count + page_size - 1) // page_size
-    return {
-        "videos": VideoData,
-        "pagination": {
-            "page": page, 
-            "page_size": page_size,
-            "total_count": total_count,
-            "total_pages": total_pages,
-            "search_term": search_term if search_term else None
-        }
-    }, 200
+        total_pages = (total_count + page_size - 1) // page_size
+        return {
+            "videos": VideoData,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "search_term": search_term if search_term else None
+            }
+        }, 200
+
+    except ValueError as ve:
+        return {"message": str(ve)}, 400
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {str(e)}")
+        return {"message": "Internal server error"}, 500
 
 @app.post('/api/startVideoConversion') 
 @functions.jwt_required_admin

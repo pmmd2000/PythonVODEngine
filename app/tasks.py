@@ -92,6 +92,10 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
             try:
 
                 if direction == 'send':
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(remote_host, username=remote_username, password=remote_pass)
+                    sftp = ssh.open_sftp()
                     ssh1 = paramiko.SSHClient()
                     ssh1.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                     ssh1.connect(remote_storage1_host, username=remote_storage1_username, password=remote_storage1_pass)
@@ -100,6 +104,9 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     ssh2.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                     ssh2.connect(remote_storage2_host, username=remote_storage2_username, password=remote_storage2_pass)
                     sftp2 = ssh2.open_sftp()
+                    remote_dir_png = os.path.join(remote_done_path, VideoName,f"{Quality}_{VideoName}_1.png")
+                    local_dir_png = os.path.join(local_done_videopath, VideoName,f"{Quality}_{VideoName}_1.png")
+                    sftp.put(local_dir_png, remote_dir_png)
                     try:
                         sftp1.mkdir(os.path.join(remote_storage1_done_ssd_path, VideoName))
                         sftp1.mkdir(os.path.join(remote_storage1_done_ssdback_path, VideoName))
@@ -111,7 +118,6 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     local_dir = os.path.join(local_done_videopath, VideoName)
                     remote_dir1 = os.path.join(remote_storage1_done_ssd_path, VideoName)
                     remote_dir2 = os.path.join(remote_storage2_done_path, VideoName)
-                    remote_dir2_done = os.path.join(remote_storage1_done_path, VideoName)
                     
                     files_to_transfer = [
                         f"{Quality}_{VideoName}_1.m3u8",
