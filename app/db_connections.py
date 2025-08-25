@@ -15,7 +15,7 @@ mssql_connection = pymssql.connect(
     database=os.getenv("DB_NAME","None")
 )
 
-r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), decode_responses=True)
+r = redis.Redis(host=os.getenv('REDIS_HOST'), port=os.getenv('REDIS_PORT'), password=os.getenv('REDIS_PASS'), decode_responses=True)
 
 hash_salt=os.getenv('HASH_SALT')
 mssql_query_select_video="SELECT * FROM dbo.TblVideo WHERE FldName=%s"
