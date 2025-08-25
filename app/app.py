@@ -7,6 +7,7 @@ import db_connections
 import Conversion
 import functions
 from pathlib import Path
+import postgres_operations
 
 app = Flask(__name__)
 load_dotenv()
@@ -19,20 +20,55 @@ base_url = f"{os.getenv('PROTOCOL')}://{os.getenv('HOST')}"
 done_dir=os.getenv('CONVERTED_VIDEOS_PATH')
 
 @app.get('/api/getVideos')
-@functions.jwt_required_admin
+@functions.jwt_required_admin 
 def video_list(jwt_payload):
-    VideoData= db_connections.mssql_select_video_star()
-    print(base_url)
-    for video in VideoData:
-        VideoName = video['VideoName']
-        thumbnail = functions.complete_url(base_url,ConvertedVideos_path,VideoName,f'480_{VideoName}_1.png')
-        video['thumbnail']=thumbnail
-    return VideoData, 200
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 10))
+        search_term = request.args.get('search', '').strip()
+        
+        if page < 1 or page_size < 1:
+            raise ValueError("Invalid pagination parameters")
+
+        # Get paginated data and total count based on search
+        try:
+            if search_term:
+                VideoData, total_count = db_connections.mssql_search_videos(search_term, page, page_size)
+            else:
+                VideoData, total_count = db_connections.mssql_select_video_star_paginated(page, page_size)
+        except Exception as db_error:
+            app.logger.error(f"Database error: {str(db_error)}")
+            return {"message": "Database connection error"}, 503
+
+        for video in VideoData:
+            VideoName = video['VideoName']
+            thumbnail = functions.complete_url(base_url, ConvertedVideos_path, VideoName, f'480_{VideoName}_1.png')
+            video['thumbnail'] = thumbnail
+
+        total_pages = (total_count + page_size - 1) // page_size
+        return {
+            "videos": VideoData,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "search_term": search_term if search_term else None
+            }
+        }, 200
+
+    except ValueError as ve:
+        return {"message": str(ve)}, 400
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {str(e)}")
+        return {"message": "Internal server error"}, 500
 
 @app.post('/api/startVideoConversion') 
 @functions.jwt_required_admin
 def video_insert(jwt_payload):
     RawVideoName = request.json['VideoName']
+    force_convert = request.args.get('force', '').lower() == 'true'
+    
     try:
         VideoFullName = functions.RawVideoNameCheck(RawVideoName)
         if VideoFullName is None:
@@ -45,19 +81,38 @@ def video_insert(jwt_payload):
         if not Extension.lower() in ['.mp4', '.avi', '.mov', '.mkv']:
             return "Invalid file extension", 400
 
-        VideoData= db_connections.mssql_select_video(VideoName)
-        ConvertedVideo_dir=os.path.join(ConvertedVideos_path,VideoName)
-        OriginalVideo_File=os.path.join(OriginalVideos_path,f'{VideoName}{Extension}')
-        if type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_dir) and os.path.exists(OriginalVideo_File):
-            Duration=Conversion.get_video_duration(VideoName,Extension,OriginalVideos_path)
-            VideoData=db_connections.mssql_insert_video(VideoName,Extension,float(Duration))
-            Conversion.ConvertVideo(VideoName,OriginalVideos_path,ConvertedVideos_path,VideoData,Symlink_path)
-            return {'VideoID':VideoData['FldPkVideo'],'ConversionID':VideoData['FldPkConversion']},200
+        VideoData = db_connections.mssql_select_video(VideoName)
+        ConvertedVideo_dir = os.path.join(ConvertedVideos_path, VideoName)
+        OriginalVideo_File = os.path.join(OriginalVideos_path, f'{VideoName}{Extension}')
+        
+        # Allow force conversion for users with role=1
+        if force_convert and jwt_payload.get('role') == 1 and os.path.exists(OriginalVideo_File):
+            Duration = Conversion.get_video_duration(VideoName, Extension, OriginalVideos_path)
+            VideoData = db_connections.mssql_insert_video(VideoName, Extension, float(Duration))
+            try:
+                postgres_operations.insert_new_conversion(VideoName)
+            except Exception as e:
+                print(f"Warning: Failed to insert into PostgreSQL: {e}")
+            
+            Conversion.ConvertVideo(VideoName, OriginalVideos_path, ConvertedVideos_path, VideoData, Symlink_path)
+            return {'VideoID': VideoData['FldPkVideo'], 'ConversionID': VideoData['FldPkConversion']}, 200
+            
+        if type(VideoData) == NoneType and not os.path.exists(ConvertedVideo_dir) and os.path.exists(OriginalVideo_File):
+            Duration = Conversion.get_video_duration(VideoName, Extension, OriginalVideos_path)
+            VideoData = db_connections.mssql_insert_video(VideoName, Extension, float(Duration))
+            
+            try:
+                postgres_operations.insert_new_conversion(VideoName)
+            except Exception as e:
+                print(f"Warning: Failed to insert into PostgreSQL: {e}")
+            
+            Conversion.ConvertVideo(VideoName, OriginalVideos_path, ConvertedVideos_path, VideoData, Symlink_path)
+            return {'VideoID': VideoData['FldPkVideo'], 'ConversionID': VideoData['FldPkConversion']}, 200
         elif os.path.exists(ConvertedVideo_dir):
             return "Video already present", 406 
-        elif not type(VideoData)==NoneType and not os.path.exists(ConvertedVideo_dir):
+        elif not type(VideoData) == NoneType and not os.path.exists(ConvertedVideo_dir):
             return 'Previously converted video missing', 406
-        elif type(VideoData)==NoneType and not os.path.exists(OriginalVideo_File):
+        elif type(VideoData) == NoneType and not os.path.exists(OriginalVideo_File):
             return 'Video file missing', 404
 
     except Exception as e:

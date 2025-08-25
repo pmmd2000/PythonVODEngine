@@ -17,6 +17,7 @@ import socket
 import tempfile
 import contextlib
 import json
+import requests
 
 @celery.task(bind=True)
 def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path, Quality: int, VideoData,ffmpeg_resolution):
@@ -26,6 +27,17 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
     remote_pass=os.getenv('REMOTE_PASS')
     remote_original_path=os.getenv('REMOTE_ORIGINAL_PATH')
     remote_done_path=os.getenv('REMOTE_DONE_PATH')
+    remote_storage2_host=os.getenv('REMOTE_STORAGE2_HOST')
+    remote_storage2_username=os.getenv('REMOTE_STORAGE2_USER')
+    remote_storage2_pass=os.getenv('REMOTE_STORAGE2_PASS')
+    remote_storage2_done_path=os.getenv('REMOTE_STORAGE2_DONE_PATH')
+    remote_storage1_host=os.getenv('REMOTE_STORAGE1_HOST')
+    remote_storage1_username=os.getenv('REMOTE_STORAGE1_USER')
+    remote_storage1_pass=os.getenv('REMOTE_STORAGE1_PASS')
+    remote_storage1_done_path=os.getenv('REMOTE_STORAGE1_DONE_PATH')
+    remote_storage1_original_path=os.getenv('REMOTE_STORAGE1_ORIGINAL_PATH')
+    remote_storage1_done_ssd_path=os.getenv('REMOTE_STORAGE1_DONE_SSD_PATH')
+    remote_storage1_done_ssdback_path=os.getenv('REMOTE_STORAGE1_DONE_SSDBACK_PATH')
     VideoID = VideoData['FldPkVideo']
     local_done_path=os.getenv('LOCAL_DONE_PATH')
     local_done_videopath=os.path.join(local_done_path,str(Quality)+"_"+VideoName)
@@ -78,17 +90,35 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
         
         def fileTransfer (direction: str, VideoName: str, Quality: int = None):
             try:
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(remote_host, username=remote_username, password=remote_pass)
-                sftp = ssh.open_sftp()
+
                 if direction == 'send':
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(remote_host, username=remote_username, password=remote_pass)
+                    sftp = ssh.open_sftp()
+                    ssh1 = paramiko.SSHClient()
+                    ssh1.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh1.connect(remote_storage1_host, username=remote_storage1_username, password=remote_storage1_pass)
+                    sftp1 = ssh1.open_sftp()
+                    ssh2 = paramiko.SSHClient()
+                    ssh2.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh2.connect(remote_storage2_host, username=remote_storage2_username, password=remote_storage2_pass)
+                    sftp2 = ssh2.open_sftp()
+                    remote_dir_png = os.path.join(remote_done_path, VideoName,f"{Quality}_{VideoName}_1.png")
+                    local_dir_png = os.path.join(local_done_videopath, VideoName,f"{Quality}_{VideoName}_1.png")
+                    sftp.put(local_dir_png, remote_dir_png)
                     try:
-                        sftp.mkdir(os.path.join(remote_done_path, VideoName))
+                        sftp1.mkdir(os.path.join(remote_storage1_done_ssd_path, VideoName))
+                        sftp1.mkdir(os.path.join(remote_storage1_done_ssdback_path, VideoName))
+                        sftp2.mkdir(os.path.join(remote_storage2_done_path, VideoName))
+                        sftp2.chown(os.path.join(remote_storage2_done_path, VideoName), 1000, 1000)
                     except IOError:
                         pass  # Directory might already exist
+
                     local_dir = os.path.join(local_done_videopath, VideoName)
-                    remote_dir = os.path.join(remote_done_path, VideoName)
+                    remote_dir1 = os.path.join(remote_storage1_done_ssd_path, VideoName)
+                    remote_dir2 = os.path.join(remote_storage2_done_path, VideoName)
+                    
                     files_to_transfer = [
                         f"{Quality}_{VideoName}_1.m3u8",
                         f"{VideoName}_1.m3u8",
@@ -102,12 +132,43 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                     # Transfer each file
                     for filename in files_to_transfer:
                         local_file = os.path.join(local_dir, filename)
-                        remote_file = os.path.join(remote_dir, filename)
+                        remote_file1 = os.path.join(remote_dir1, filename)
+                        remote_file2 = os.path.join(remote_dir2, filename)
                         if os.path.exists(local_file):
-                            sftp.put(local_file, remote_file)
-                            logging.info(f"Sent {filename} to remote server")
+                            sftp1.put(local_file, remote_file1)
+                            sftp2.put(local_file, remote_file2)
+                            sftp2.chown(remote_file2, 1000, 1000)
+
+                    # --- UPDATED CODE: Copy files from storage2 SSD to SSD backup and symlink the folder ---
+                    # Copy each file from SSD to SSD backup
+                    for filename in files_to_transfer:
+                        remote_file2_ssd = os.path.join(remote_dir1, filename)
+                        remote_dir2_ssdback = os.path.join(remote_storage1_done_ssdback_path, VideoName)
+                        remote_file2_ssdback = os.path.join(remote_dir2_ssdback, filename)
+                        try:
+                            sftp1.stat(remote_file2_ssd)  # Ensure file exists
+                            copy_cmd = f'cp "{remote_file2_ssd}" "{remote_file2_ssdback}"'
+                            ssh1.exec_command(copy_cmd)
+                        except Exception as e:
+                            logging.error(f"Failed to copy {filename} to SSD backup on storage2: {e}")
+
+                    # Create symlink for the folder (not individual files)
+                    try:
+                        # # Remove the actual done path folder if it exists and is not a symlink
+                        # ssh2.exec_command(f'if [ -d "{remote_dir2}" ] && [ ! -L "{remote_dir2}" ]; then rm -rf "{remote_dir2}"; fi')
+                        # Create symlink from SSD folder to actual done path
+                        symlink_cmd = f'ln -s {remote_dir1}/ {remote_storage1_done_path}'
+                        logging.info(symlink_cmd)
+                        ssh1.exec_command(symlink_cmd)
+                    except Exception as e:
+                        logging.error(f"Failed to symlink SSD folder to actual done path on storage2: {e}")
+                    # --- END UPDATED CODE ---
 
                 elif direction == 'receive':
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(remote_host, username=remote_username, password=remote_pass)
+                    sftp = ssh.open_sftp()
                     # Create local directory if it doesn't exist
                     os.makedirs(os.path.join(local_done_videopath, VideoName), exist_ok=True)
 
@@ -127,8 +188,6 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 else:
                     raise ValueError("Direction must be either 'send' or 'receive'")
 
-                sftp.close()
-                ssh.close()
 
             except Exception as e:
                 logging.error(f"File transfer failed: {e}")
@@ -386,17 +445,56 @@ def process_video_task(self, VideoName, OriginalVideo_path, ConvertedVideos_path
                 if os.path.exists(socket_path):
                     os.unlink(socket_path)
 
+        def notify_conversion_status(video_name: str, status_type: int):
+            """
+            Notify the conversion status API
+            status_type: 1 = started, 2 = ended, 3 = both
+            """
+            try:
+                api_host = os.getenv('CONVERSION_API_HOST')
+                api_secret = os.getenv('CONVERSION_API_SECRET')
+                
+                name = os.path.splitext(video_name)[0]
+                
+                payload = {
+                    "localStream": name,
+                    "type": status_type,
+                    "secret": api_secret
+                }
+                
+                headers = {
+                    'accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+                
+                url = f"{api_host}/video/logUploadConvert"
+                
+                response = requests.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                logging.info(f"Successfully notified conversion status API for {name} with type {status_type}")
+                
+            except Exception as e:
+                logging.error(f"Failed to notify conversion status: {str(e)}")
+
+        # Add status notification at start
+        notify_conversion_status(VideoName, 1)
+        notify_conversion_status(VideoName, 3)
         MP4Transfer()
         fileTransfer('receive', VideoName, Quality)
         ffmpeg_conversion(ConversionID,Quality,ffmpeg_resolution)
         redis_update_video_quality(ConversionID, Quality, 100)
-        mssql_update_video_quality(ConversionID,Quality,'End')
         watermark_video(local_done_videopath,VideoName,Quality,VideoData,watermark_path)
         mssql_insert_chunks(ConversionID,Quality,VideoName)
         functions.WriteMasterM3U8(ConversionID,VideoName,local_done_videopath)
         fileTransfer('send',VideoName,Quality)
         CheckConversionEndRedis(ConversionID)
+        mssql_update_video_quality(ConversionID,Quality,'End')
         cleanup()
+
+        # Add status notification at end
+        notify_conversion_status(VideoName, 2)
+        notify_conversion_status(VideoName, 3)
+
         return f"{ConversionID}:{Quality}"
     except Exception as e:
         self.update_state(
